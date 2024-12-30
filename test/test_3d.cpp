@@ -56,6 +56,7 @@ void verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, doubl
     double acEff = ee / std1 / std2;
 
     double mse = sum / num_elements;
+    double sse = sum; // sum of square error
     double range = Max - Min;
     psnr = 20 * log10(range) - 10 * log10(mse);
     nrmse = sqrt(mse) / range;
@@ -70,6 +71,8 @@ void verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, doubl
     printf("PSNR = %f, NRMSE= %.10G\n", psnr, nrmse);
     printf("normError = %f, normErr_norm = %f\n", normErr, normErr_norm);
     printf("acEff=%f\n", acEff);
+    printf("SSE=%f\n", sse);
+    printf("MSE=%f\n", mse);
     //        printf("errAutoCorr=%.10f\n", autocorrelation1DLag1<double>(diff, num_elements, diff_sum / num_elements));
     free(diff);
 }
@@ -90,6 +93,11 @@ int main(int argc, char **argv) {
     readfile(argv[N + 2], data_size, original_data.data());
     readfile(argv[N + 3], data_size, dec_data.data());
     readfile(argv[N + 4], data_size, quant_index.data());
+
+
+    std::cout << argv[N + 2] << std::endl;
+    std::cout << argv[N + 3] << std::endl;
+    std::cout << argv[N + 4] << std::endl;
     double psnr, nrmse, max_diff;
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
 
@@ -99,11 +107,13 @@ int main(int argc, char **argv) {
     for (int i = 0; i < data_size; i++) {
         error[i] = original_data[i] - dec_data[i];
         error_max = std::max(error_max, (double)std::abs(error[i]));
+        quant_index[i] = quant_index[i] - 32768 ;
     }
     std::cout << "error_max = " << error_max << std::endl;
     // get compensation map
+    double compensation_factor = 0.9;
     auto compensator = PM::Compensation<Real, int>(N, dims.data(),
-                    dec_data.data(), quant_index.data(), error_max*0.9);
+                    dec_data.data(), quant_index.data(), error_max*compensation_factor);
 
     auto compensation_map = compensator.get_compensation_map();
 

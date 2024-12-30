@@ -100,6 +100,9 @@ int NI_SubspaceIterator(NI_Iterator *iterator, npy_uint32 axes)
 }
 
 
+
+double _VoronoiFT_time =0; 
+
 static void _VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
                        int d, npy_intp stride, npy_intp cstride,
                        npy_intp **f, npy_intp *g, const npy_double *sampling)
@@ -107,9 +110,19 @@ static void _VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
     npy_intp l = -1, ii, maxl, idx1, idx2;
     npy_intp jj;
 
-    for(ii = 0; ii < len; ii++)
-        for(jj = 0; jj < rank; jj++)
-            f[ii][jj] = *(pf + ii * stride + cstride * jj);
+    // auto timer = Timer();
+    // timer.start();
+
+    // for(ii = 0; ii < len; ii++)
+    //     for(jj = 0; jj < rank; jj++)
+    //         f[ii][jj] = *(pf + ii * stride + cstride * jj); // ctrisde = data_size
+
+    for(jj = 0; jj < rank; jj++)
+        for(ii = 0; ii < len; ii++)
+            f[ii][jj] = *(pf + ii * stride + cstride * jj); // ctrisde = data_size
+
+    
+    // _VoronoiFT_time += timer.stop(); 
     for(ii = 0; ii < len; ii++) {
         if (*(pf + ii * stride) >= 0) {
             double fd = f[ii][d];
@@ -135,10 +148,10 @@ static void _VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
                         double cc = coor[jj];
                         double tu = f[idx2][jj] - cc;
                         double tv = f[idx1][jj] - cc;
-                        if (sampling) {
-                            tu *= sampling[jj];
-                            tv *= sampling[jj];
-                        }
+                        // if (sampling) {
+                        //     tu *= sampling[jj];
+                        //     tv *= sampling[jj];
+                        // }
                         uR += tu * tu;
                         vR += tv * tv;
                     }
@@ -514,6 +527,8 @@ std::tuple<std::vector<T>, std::vector<size_t>> NI_EuclideanFeatureTransform(cha
                index_strides.data(), N,
                N - 1, coor, f, g, features.data(), 0);
     std::cout << "edt time = "  << timer.stop() << std::endl;
+    std::cout << "_VoronoiFT_time = " << _VoronoiFT_time << std::endl;
+
 
     free(f);
     free(g);

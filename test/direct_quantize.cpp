@@ -51,8 +51,8 @@ int main(int argc, char** argv)
     }
 
     // write the quantized data to a file
-    std::string output_file =  p.filename().string()+argv[2] + ".quant.i32";
-    std::string out_data_file =  p.filename().string()+argv[2] + ".out"; 
+    std::string output_file =  p.filename().string()+ ".quant.i32";
+    std::string out_data_file =  p.filename().string() + ".out"; 
     printf("Writing quantized data to %s\n", output_file.c_str());
     SZ::writefile(output_file.c_str(), quant_inds.data(),file_size);
     SZ::writefile(out_data_file.c_str(), input_data.data(),file_size);    

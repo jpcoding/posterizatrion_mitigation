@@ -99,6 +99,8 @@ int main(int argc, char **argv) {
     for (int i = 0; i < data_size; i++) {
         error[i] = original_data[i] - dec_data[i];
         error_max = std::max(error_max, (double)std::abs(error[i]));
+        quant_index[i] = quant_index[i] - 32768 ;
+
     }
     std::cout << "error_max = " << error_max << std::endl;
     // get compensation map
