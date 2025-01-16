@@ -10,6 +10,9 @@
 
 #include "compensation.hpp"
 #include "utils/file_utils.hpp"
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 template <typename Type>
 void verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, double &nrmse, double &max_diff) {
@@ -112,19 +115,23 @@ int main(int argc, char **argv) {
     std::cout << "error_max = " << error_max << std::endl;
     // get compensation map
     double compensation_factor = 0.9;
+    auto timer = Timer(); 
+    timer.start();
     auto compensator = PM::Compensation<Real, int>(N, dims.data(),
                     dec_data.data(), quant_index.data(), error_max*compensation_factor);
 
     auto compensation_map = compensator.get_compensation_map();
+    std::cout << "compensation time = " << timer.stop() << std::endl;
+    std::string file_basename = fs::path(argv[N + 2]).filename();
 
     // write the compensation map to file
-    writefile("compensation_map.f32", compensation_map.data(), data_size);
+    writefile((file_basename + "_compensation_map.edt.f32").c_str(), compensation_map.data(), data_size);
 
     // add the compensation map to the dec data
     for (int i = 0; i < data_size; i++) {
         dec_data[i] += compensation_map[i];
     }
-    writefile("compensated_data.f32", dec_data.data(), data_size);
+    writefile((file_basename + "_compensated_data.edt.f32").c_str(), dec_data.data(), data_size);
     // calculate PSNR 
 
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
