@@ -100,6 +100,12 @@ int main(int argc, char** argv)
     readfile(argv[N + 2], data_size, original_data.data());
     double rel_eb = atof(argv[N + 3]); 
 
+    int num_threads = 8;
+    if (argc >= N + 7) {
+        num_threads = atoi(argv[N + 6]);
+        std::cout << "num_threads = " << num_threads << std::endl; 
+    }   
+
     // make a copy of the original data
     std::vector<Real> dec_data(data_size, 0);
     std::copy(original_data.begin(), original_data.end(), dec_data.begin());
@@ -125,6 +131,7 @@ int main(int argc, char** argv)
     // writefile((fs::path(argv[N + 2]).filename().string() + ".qcd").c_str(), dec_data.data(), data_size);
     writefile(argv[N+4], dec_data.data(), data_size);
 
+    writefile("quant_index.i32", quant_inds.data(), data_size);
     // verify the data 
     double psnr, nrmse, max_diff;
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
@@ -134,8 +141,8 @@ int main(int argc, char** argv)
         for (int i = 0; i < N; i++) {
             dims_[i] = dims[i];
         }
-        auto ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
-        printf("SSIM = %f\n", ssim);
+        // auto ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
+        // printf("SSIM = %f\n", ssim);
     
 
     // compensation using edt method
@@ -145,8 +152,10 @@ int main(int argc, char** argv)
     timer.start();
     auto compensator = PM::Compensation<Real, int>(N, dims.data(),
                     dec_data.data(), quant_inds.data(), max_diff*compensation_factor);
+    compensator.set_edt_thread_num(num_threads); 
 
     auto compensation_map = compensator.get_compensation_map();
+    // writefile("compensation_map.f32", compensation_map.data(), data_size);
     // add the compensation map to the dec_data
     for (int i = 0; i < data_size; i++) {
         dec_data[i] += compensation_map[i];
@@ -155,8 +164,8 @@ int main(int argc, char** argv)
 
     // verify the compensated data
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
-    ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
-    printf("SSIM = %f\n", ssim);
+    // ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
+    // printf("SSIM = %f\n", ssim);
     // write the compensation map to file
     writefile(argv[N+5], dec_data.data(), data_size);
     return 0;

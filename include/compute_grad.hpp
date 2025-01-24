@@ -7,6 +7,7 @@
 #include<cmath>
 #include<tuple>
 #include<functional>
+#include<iostream> 
 
 template<typename T_data>
 class ComputeGrad
@@ -61,12 +62,28 @@ class ComputeGrad
                 else
                 {
                     // first dim 
+                    
+                    double max_grad = -1;
                     double dx =  (1.0*input_data[index + strides[0]] - 1.0*input_data[index - strides[0]])/2.0;
+                    max_grad = std::max(max_grad, std::abs(dx));
                     // second dim
                     double dy =  (1.0*input_data[index + strides[1]] - 1.0*input_data[index - strides[1]])/2.0;
+                    max_grad = std::max(max_grad, std::abs(dy));
                     // third dim
                     double dz =  (1.0*input_data[index + strides[2]] - 1.0*input_data[index - strides[2]])/2.0;
-                    return std::sqrt(dx*dx + dy*dy + dz*dz);
+                    max_grad = std::max(max_grad, std::abs(dz)); 
+
+                    if( i == 81  && j == 35 && k == 275)
+                    {
+                        std::cout << "##dx = " << dx << std::endl;
+                        std::cout << "##dy = " << dy << std::endl;
+                        std::cout << "##dz = " << dz << std::endl; 
+                        std::cout << "##max_grad = " << max_grad << std::endl; 
+                    }
+                    return max_grad; 
+                    // std::array<double, 3> grad = {std::abs(dx), std::abs(dy), std::abs(dz)};
+                    // return *std::max_element(grad.begin(), grad.end());
+
                 }
             }
             else {
