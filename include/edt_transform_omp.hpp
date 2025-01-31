@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "utils/timer.hpp"
+#include "utils/file_utils.hpp"
 
 namespace PM2 {
 
@@ -62,8 +63,9 @@ static void VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
     npy_intp l = -1, ii, maxl, idx1, idx2;
     npy_intp jj;
 
-    for (jj = 0; jj < rank; jj++)
-        for (ii = 0; ii < len; ii++) f[ii][jj] = *(pf + ii * stride + cstride * jj); 
+    for (ii = 0; ii < len; ii++) 
+        for (jj = 0; jj < rank; jj++)
+            f[ii][jj] = *(pf + ii * stride + cstride * jj); 
 
     for (ii = 0; ii < len; ii++) {
         if (*(pf + ii * stride) >= 0) {
@@ -128,9 +130,8 @@ static void VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
 }
 
 void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides, const npy_intp *fstrides,
-                          int rank, npy_intp **f, npy_intp *g) {
+                          int rank) {
     std::vector<npy_intp> coor(rank, 0);
-
     if (rank == 2) {
         omp_set_num_threads(num_threads);
         int max_dim = std::max(ishape[0], ishape[1]);
@@ -143,7 +144,6 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
                 local_f_ptrs[i][j] = local_f[i].data() + j * 2;
             }
         }
-        // std::cout << "num_threads = " << num_threads << std::endl;  
 #pragma omp parallel for num_threads(num_threads)
         for (int i = 0; i < ishape[1]; i++) {
             int thread_id = omp_get_thread_num(); 
@@ -151,36 +151,30 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
             for (int j = 0; j < ishape[0]; j++) {
                 size_t idx = i * istrides[1] + j * istrides[0];
                 if (pi[idx]) {
-                    pf[idx] = -1;
+                    pf[idx*2] = -1;
                 } else {
-                    pf[idx] = j;
-                    pf[fstrides[0] + idx] = i;
+                    pf[idx*2] = j;
+                    pf[idx*2 +1] = i;
                 }
             }
-            VoronoiFT(pf + i * fstrides[2], 
+            VoronoiFT(pf + i * fstrides[1], 
             ishape[0], coor_local[thread_id].data(), rank, 0, 
-            fstrides[1], fstrides[0], local_f_ptrs[thread_id].data(), 
+            fstrides[0], fstrides[2], local_f_ptrs[thread_id].data(), 
                                                             local_g[thread_id].data());
         }
 #pragma omp parallel for num_threads(num_threads)
         for (int i = 0; i < ishape[0]; i++) {
             int thread_id = omp_get_thread_num(); 
             coor_local[thread_id][0] = i;
-            VoronoiFT(pf + i * fstrides[1], ishape[1], coor_local[thread_id].data(), rank, 
-                        1, fstrides[2], fstrides[0], local_f_ptrs[thread_id].data(), 
+            VoronoiFT(pf + i * fstrides[0], ishape[1], coor_local[thread_id].data(), rank, 
+                        1, fstrides[1], fstrides[2], local_f_ptrs[thread_id].data(), 
                                                             local_g[thread_id].data());
         }
 
     } else if (rank == 3) {
-        // The last dimension is the fastest changing dimension
 
         omp_set_num_threads(num_threads);
-        // get the current number of threads
-        // std::cout << "num_threads = " << omp_get_max_threads() << std::endl;
-
-        // prepare shared memory for the threads
         int max_dim = std::max(ishape[0], std::max(ishape[1], ishape[2]));
-
         std::vector<std::vector<npy_intp>> local_f(num_threads, std::vector<npy_intp>(max_dim * 3));
         std::vector<std::vector<npy_intp>> local_g(num_threads, std::vector<npy_intp>(max_dim));
         std::vector<std::vector<npy_intp *>> local_f_ptrs(num_threads, std::vector<npy_intp *>(max_dim));
@@ -199,19 +193,21 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
                 for (int k = 0; k < ishape[0]; k++) {
                     size_t idx = i * istrides[2] + j * istrides[1] + k * istrides[0];
                     if (pi[idx]) {
-                        pf[idx] = -1;
+                        pf[idx*3] = -1;
                     } else {
-                        pf[idx] = k;
-                        pf[fstrides[0] + idx] = j;
-                        pf[fstrides[0] * 2 + idx] = i;
+                        pf[idx*3] = k;
+                        pf[fstrides[3] + idx*3] = j;
+                        pf[fstrides[3] * 2 + idx*3] = i;
                     }
                 }
                 int cur_thread_id = omp_get_thread_num();
                 coor_local[cur_thread_id][0] = 0;
                 coor_local[cur_thread_id][1] = 0;
                 coor_local[cur_thread_id][2] = 0;
-                VoronoiFT(pf + i * fstrides[3] + j * fstrides[2], ishape[0], coor_local[cur_thread_id].data(), rank, 0,
-                          fstrides[1], fstrides[0], local_f_ptrs[cur_thread_id].data(), local_g[cur_thread_id].data());
+                VoronoiFT(pf + i * fstrides[2] + j * fstrides[1], ishape[0], 
+                     coor_local[cur_thread_id].data(), rank, 0,
+                          fstrides[0], fstrides[3], 
+                          local_f_ptrs[cur_thread_id].data(), local_g[cur_thread_id].data());
             }
         }
 
@@ -223,8 +219,10 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
                 coor_local[cur_thread_id][0] = j;
                 coor_local[cur_thread_id][1] = 0;
                 coor_local[cur_thread_id][2] = i;
-                VoronoiFT(pf + i * fstrides[3] + j * fstrides[1], ishape[1], coor_local[cur_thread_id].data(), rank, 1,
-                          fstrides[2], fstrides[0], local_f_ptrs[cur_thread_id].data(), local_g[cur_thread_id].data());
+                VoronoiFT(pf + i * fstrides[2] + j * fstrides[0], ishape[1],
+                     coor_local[cur_thread_id].data(), rank, 1,
+                          fstrides[1], fstrides[3], 
+                          local_f_ptrs[cur_thread_id].data(), local_g[cur_thread_id].data());
             }
         }
 
@@ -236,8 +234,10 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
                 coor_local[cur_thread_id][0] = j;
                 coor_local[cur_thread_id][1] = i;
                 coor_local[cur_thread_id][2] = 0;
-                VoronoiFT(pf + i * fstrides[2] + j * fstrides[1], ishape[2], coor_local[cur_thread_id].data(), rank, 2,
-                          fstrides[3], fstrides[0], local_f_ptrs[cur_thread_id].data(), local_g[cur_thread_id].data());
+                VoronoiFT(pf + i * fstrides[1] + j * fstrides[0], ishape[2], 
+                        coor_local[cur_thread_id].data(), rank, 2,
+                          fstrides[2], fstrides[3], 
+                          local_f_ptrs[cur_thread_id].data(), local_g[cur_thread_id].data());
             }
         }
     }
@@ -251,6 +251,7 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
 template <typename T, typename T_int>
 std::tuple<std::vector<T>, std::vector<size_t>> calculate_distance_and_index(T_int *festures, int *index_strides, int N,
                                                                              int *feature_dims) {
+    global_timer.start();
     size_t size = 1;
     for (int i = 0; i < N; i++) {
         size *= feature_dims[i];
@@ -258,48 +259,40 @@ std::tuple<std::vector<T>, std::vector<size_t>> calculate_distance_and_index(T_i
 
     std::vector<T> distance(size, 0);
     std::vector<size_t> indexes(size, 0);
-    T *distance_pos = distance.data();
-    size_t *index_pos = indexes.data();
+    double dist = 0;
+    size_t global_idx = 0;
+    T_int x, y, z;
     if (N == 2) {
+        #pragma omp parallel for collapse(2) num_threads(this->num_threads) private(dist, global_idx, x, y)
         for (int i = 0; i < feature_dims[0]; i++) {
             for (int j = 0; j < feature_dims[1]; j++) {
-                T_int x = festures[i * index_strides[1] + j * index_strides[2]];
-                T_int y = festures[i * index_strides[1] + j * index_strides[2] + index_strides[0]];
-                double dist = (x - i) * (x - i) + (y - j) * (y - j);
-                *distance_pos = sqrt(dist);
-                size_t index = x * index_strides[1] + y * index_strides[2];
-                *index_pos = index;
-                index_pos++;
-                distance_pos++;
+                global_idx = i * feature_dims[1] + j;
+                x = festures[global_idx*2];
+                y = festures[global_idx*2 + index_strides[2]];
+                dist = (x - i) * (x - i) + (y - j) * (y - j);
+                distance[global_idx] = sqrt(dist);
+                indexes[global_idx] = x * feature_dims[1] + y ;
             }
         }
     } else if (N == 3) {
-        for (int i = 0; i < feature_dims[0]; i++) {
+        size_t d1xd2 = feature_dims[1] * feature_dims[2];
+        #pragma omp parallel for collapse(3) num_threads(this->num_threads) private(dist, global_idx, x, y, z)
+        for (int i = 0; i < feature_dims[0]; i++) { 
             for (int j = 0; j < feature_dims[1]; j++) {
                 for (int k = 0; k < feature_dims[2]; k++) {
-                    T_int x = festures[i * index_strides[1] + j * index_strides[2] + k * index_strides[3]];
-                    T_int y =
-                        festures[i * index_strides[1] + j * index_strides[2] + k * index_strides[3] + index_strides[0]];
-                    T_int z = festures[i * index_strides[1] + j * index_strides[2] + k * index_strides[3] +
-                                       index_strides[0] * 2];
-                    // std::cout << "i = " << i << " j = " << j << " k = " << k << std::endl;
-                    // std::cout <<  "x = " << x << " y = " << y << " z = " << z << std::endl;
-                    double dist = (x - i) * (x - i) + (y - j) * (y - j) + (z - k) * (z - k);
-                    size_t index = x * index_strides[1] + y * index_strides[2] + z * index_strides[3];
-                    *index_pos = index;
-                    *distance_pos = sqrt(dist);
-                    distance_pos++;
-                    index_pos++;
+                    global_idx = i * d1xd2 + j * feature_dims[2] + k; 
+                    x = festures[global_idx*3 ];
+                    y = festures[global_idx*3 + index_strides[3]];
+                    z = festures[global_idx*3 + index_strides[3] * 2];
+                    dist = (x - i) * (x - i) + (y - j) * (y - j) + (z - k) * (z - k);
+                    distance[global_idx] = sqrt(dist);
+                    indexes[global_idx] = x * d1xd2 + y * feature_dims[2] + z;
                 }
             }
         }
     }
-    // make a pair of the two vectors
-    printf("distance address  = %ld \n", &distance[0]);
-    printf("index address  = %ld \n", &indexes[0]); 
-    std::tuple<std::vector<T>, std::vector<size_t>> result = std::make_tuple(std::move(distance), std::move(indexes));
-    return result;
-    // return distance;
+    distance_time = global_timer.stop();
+    return {std::move(distance), std::move(indexes)};;
 }
 
 template <typename T, typename T_int>
@@ -316,11 +309,11 @@ std::vector<T> calculate_distance(T_int *festures, int *index_strides, int N, in
         #pragma omp parallel for collapse(2) num_threads(this->num_threads)
         for (int i = 0; i < feature_dims[0]; i++) {
             for (int j = 0; j < feature_dims[1]; j++) {
-                T_int x = festures[i * index_strides[1] + j * index_strides[2]];
-                T_int y = festures[i * index_strides[1] + j * index_strides[2] + index_strides[0]];
+                size_t global_idx = i * feature_dims[1] + j;
+                T_int x = festures[global_idx*2];
+                T_int y = festures[global_idx*2 + index_strides[2]];
                 double dist = (x - i) * (x - i) + (y - j) * (y - j);
-                size_t index = x * index_strides[1] + y * index_strides[2]; 
-                distance[index] = sqrt(dist); 
+                distance[global_idx] = sqrt(dist);
             }
         }
     } else if (N == 3) {
@@ -328,12 +321,12 @@ std::vector<T> calculate_distance(T_int *festures, int *index_strides, int N, in
         for (int i = 0; i < feature_dims[0]; i++) {
             for (int j = 0; j < feature_dims[1]; j++) {
                 for (int k = 0; k < feature_dims[2]; k++) {
-                    size_t index = i * index_strides[1] + j * index_strides[2] + k * index_strides[3]; 
-                    T_int x = festures[index];
-                    T_int y = festures[index + index_strides[0]];
-                    T_int z = festures[index+index_strides[0] * 2];
+                    size_t global_idx = i * feature_dims[1]* feature_dims[2] + j * feature_dims[2] + k; 
+                    T_int x = festures[global_idx*3 ];
+                    T_int y = festures[global_idx*3 + index_strides[3]];
+                    T_int z = festures[global_idx*3 + index_strides[3] * 2];
                     double dist = (x - i) * (x - i) + (y - j) * (y - j) + (z - k) * (z - k);
-                    distance[index] = sqrt(dist);
+                    distance[global_idx] = sqrt(dist);
                 }
             }
         }
@@ -366,8 +359,8 @@ int NI_EuclideanFeatureTransform(char *input, int *features, int N, int *dims, i
 
     if (N == 2) {
         strides[0] = dims[1];
-        index_strides[1] = dims[1];
-        index_strides[0] = dims[0] * dims[1];
+        index_strides[1] = 2;
+        index_strides[0] = dims[1]*2;
     } else if (N == 3) {
         strides[1] = dims[2];
         strides[0] = dims[1] * dims[2];
@@ -388,10 +381,9 @@ int NI_EuclideanFeatureTransform(char *input, int *features, int N, int *dims, i
     // }
 
     /* First call of recursive feature transform */
-    auto timer = Timer();
-    timer.start();
-    ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N, f, g);
-    edt_time = timer.stop();
+    global_timer.start();
+    ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N);
+    edt_time = global_timer.stop();
 
     // calculate_distance<int, int>(features, index_strides.data(), N, dims);
     //  auto distance = calculate_distance<double, int> (features, index_strides.data(), N, dims);
@@ -410,64 +402,38 @@ int NI_EuclideanFeatureTransform(char *input, int *features, int N, int *dims, i
 template <typename T, typename T_int>
 std::tuple<std::vector<T>, std::vector<size_t>> NI_EuclideanFeatureTransform(char *input, int N, int *dims,
                                                                              int num_threads = 64) {
-    int ii;
-    npy_intp coor[NPY_MAXDIMS], mx = 0, jj;
-    npy_intp *tmp = NULL, **f = NULL, *g = NULL;
+    global_timer.start();
     char *pi;
     int *pf;
     size_t input_size = 1;
-
     pi = (input);
-
-    for (ii = 0; ii < N; ii++) {
-        coor[ii] = 0;
-        if (dims[ii] > mx) {
-            mx = dims[ii];
-        }
+    for (int ii = 0; ii < N; ii++) {
         input_size *= dims[ii];
     }
-    std::vector<int> features(input_size * N, 0);
+    std::vector<int> features(input_size * N);
     pf = features.data();
-
     std::vector<int> strides(N);
     std::vector<int> index_strides(N + 1);
     strides[N - 1] = 1;
     index_strides[N] = 1;
-
     if (N == 2) {
         strides[0] = dims[1];
-        index_strides[1] = dims[1];
-        index_strides[0] = dims[0] * dims[1];
+        index_strides[0] = dims[1]*2;
+        index_strides[1] = 2;
     } else if (N == 3) {
         strides[1] = dims[2];
         strides[0] = dims[1] * dims[2];
-        index_strides[2] = dims[2];
-        index_strides[1] = dims[1] * dims[2];
-        index_strides[0] = dims[0] * dims[1] * dims[2];
-
+        index_strides[0] = dims[1] * dims[2]*3;
+        index_strides[1] = dims[2] * 3;
+        index_strides[2] = 3;
     } else {
         exit(0);
     }
+    printf("aux time = %f \n", global_timer.stop());
+    global_timer.start();
+    ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N);
+    edt_time = global_timer.stop();
 
-    /* Some temporaries */
-    // f = (npy_intp **)malloc(mx * sizeof(npy_intp *));
-    // g = (npy_intp *)malloc(mx * sizeof(npy_intp));
-    // tmp = (npy_intp *)malloc(mx * N * sizeof(npy_intp));
-
-    // for (jj = 0; jj < mx; jj++) {
-    //     f[jj] = tmp + jj * N;
-    // }
-
-    /* First call of recursive feature transform */
-    auto timer = Timer();
-    timer.start();
-    ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N, f, g);
-    edt_time = timer.stop();
-    // std::cout << "_VoronoiFT_time = " << _VoronoiFT_time << std::endl;
-
-    // free(f);
-    // free(g);
-    // free(tmp);
     return calculate_distance_and_index<T, T_int>(features.data(), index_strides.data(), N, dims);
 }
 
@@ -478,6 +444,7 @@ private:
     int num_threads = 1;
     double edt_time = 0;
     double distance_time = 0; 
+    Timer global_timer; 
 
 
 

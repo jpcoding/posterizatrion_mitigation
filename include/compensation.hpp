@@ -380,6 +380,8 @@ class Compensation {
         auto edt_omp = PM2::EDT_OMP();
         edt_omp.set_num_threads(edt_thread_num);
         auto edt_result = edt_omp.NI_EuclideanFeatureTransform<double, int>(boundary_map.data(), N, dims.data());
+        // auto edt_result = PM::NI_EuclideanFeatureTransform<double, int>(boundary_map.data(), N, dims.data());
+
         // std::cout << "edt time = " << timer.stop() << std::endl;
         auto distance_array = std::get<0>(edt_result);
         auto indexes = std::get<1>(edt_result);
@@ -424,7 +426,8 @@ class Compensation {
         edt_omp.reset_timer();
         edt_omp.set_num_threads(edt_thread_num);
         auto edt_result2 = edt_omp.NI_EuclideanFeatureTransform<double, int>(boundary_map2.data(), N, dims.data());
-        // std::cout << "edt time = " << timer.stop() << std::endl;
+        // auto edt_result2 = PM::NI_EuclideanFeatureTransform<double, int>(boundary_map2.data(), N, dims.data());
+        std::cout << "[edt time = " << timer.stop() << std::endl;
         auto distance_array2 = std::get<0>(edt_result2);
         auto indexes2 = std::get<1>(edt_result2);
 
@@ -561,7 +564,8 @@ class Compensation {
     timer.start();
     edt_omp.reset_timer();
     auto edt_result2 = edt_omp.NI_EuclideanFeatureTransform<double, int>(boundary_map2.data(), N, dims.data());
-    distance_array2 = std::move(std::get<0>(edt_result2));
+    // distance_array2 = std::move(std::get<0>(edt_result2));
+    distance_array2 = std::get<0>(edt_result2);
     // auto indexes2 = std::move(std::get<1>(edt_result2));
 
     for (size_t i = 0; i < input_size; i++) {
@@ -643,9 +647,14 @@ class Compensation {
         auto edt_omp = PM2::EDT_OMP();
         edt_omp.set_num_threads(edt_thread_num);
         auto edt_result = edt_omp.NI_EuclideanFeatureTransform<double, int>(boundary_map.data(), N, dims.data(),edt_thread_num);
-        std::cout << "edt time = " << timer.stop() << std::endl;
-        auto distance_array = std::get<0>(edt_result);
-        auto indexes = std::get<1>(edt_result);
+        // auto edt_result = NI_EuclideanFeatureTransform<double, int>(boundary_map.data(), N, dims.data());        
+        std::cout << "edt total time = " << timer.stop() << std::endl;
+        auto distance_array = std::move(std::get<0>(edt_result));
+        auto indexes = std::move(std::get<1>(edt_result));
+        // print edt time 
+        printf("edt time = %.10f \n", edt_omp.get_edt_time());
+        std::cout << "distance time = " << edt_omp.get_distance_time() << std::endl;
+
 
         // writefile("distance.f64", distance_array.data(), distance_array.size());
         std::vector<int> sign_map(input_size, 0);  
@@ -679,7 +688,7 @@ class Compensation {
         // writefile("sign.int8", sign_map.data(), input_size);
         // get the second boundry map 
         auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data());
-
+        
         // filp and remove the boundary points 
         for (int i = 0; i < input_size; i++) {
             if (boundary_map2[i] == 1 && boundary_mask[i] == false) { 
@@ -693,8 +702,8 @@ class Compensation {
 
         timer.start();
         edt_omp.reset_timer(); 
-        auto edt_result2 = edt_omp.NI_EuclideanFeatureTransform<double, int>(boundary_map2.data(), 
-                                            N, dims.data(), edt_thread_num);
+        // auto edt_result2 = NI_EuclideanFeatureTransform<double, int>(boundary_map2.data(), N, dims.data());        // 
+        auto edt_result2 = edt_omp.NI_EuclideanFeatureTransform<double, int>(boundary_map2.data(), N, dims.data(), edt_thread_num);       
         std::cout << "edt time = " << timer.stop() << std::endl;
         auto distance_array2 = std::get<0>(edt_result2);
         auto indexes2 = std::get<1>(edt_result2);
@@ -770,6 +779,7 @@ class Compensation {
             //     compensation_map[i] = sign * magnitude * comepnsation_value;
             // }
         }
+        std::cout << "compensation map size = " << compensation_map.size() << std::endl; 
         return compensation_map;
     }
 

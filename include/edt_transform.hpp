@@ -7,7 +7,6 @@
 #include<cmath>
 #include <tuple>
 #include "utils/timer.hpp"
-#include "omp.h"
 
 
 namespace PM{
@@ -96,7 +95,6 @@ int NI_SubspaceIterator(NI_Iterator *iterator, npy_uint32 axes)
             ++last;
         }
     }
-
     iterator->rank_m1 = last - 1;
     return 1;
 }
@@ -107,7 +105,7 @@ double _VoronoiFT_time =0;
 
 static void _VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
                        int d, npy_intp stride, npy_intp cstride,
-                       npy_intp **f, npy_intp *g)
+                       npy_intp **f, npy_intp *g, const npy_double *sampling)
 {
     npy_intp l = -1, ii, maxl, idx1, idx2;
     npy_intp jj;
@@ -125,7 +123,6 @@ static void _VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
 
     
     // _VoronoiFT_time += timer.stop(); 
-    // TODO parfor 
     for(ii = 0; ii < len; ii++) {
         if (*(pf + ii * stride) >= 0) {
             double fd = f[ii][d];
@@ -133,6 +130,7 @@ static void _VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
             for(jj = 0; jj < rank; jj++) {
                 if (jj != d) {
                     double tw = f[ii][jj] - coor[jj];
+
                     wR += tw * tw;
                 }
             }
@@ -200,13 +198,13 @@ static void _VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
 static void _ComputeFT(char *pi, int *pf, npy_intp *ishape,
                        const npy_intp *istrides, const npy_intp *fstrides,
                        int rank, int d, npy_intp *coor, npy_intp **f,
-                       npy_intp *g, int* features)
+                       npy_intp *g, int* features,
+                       const npy_double *sampling = NULL)
 {
     npy_intp kk;
     npy_intp jj;
 
     if (d == 0) {
-    // this is a single line
     int *tf1 = pf;
         for(jj = 0; jj < ishape[0]; jj++) {
             if (*pi) {
@@ -223,43 +221,27 @@ static void _ComputeFT(char *pi, int *pf, npy_intp *ishape,
             tf1 += fstrides[1];
         }
         _VoronoiFT(pf, ishape[0], coor, rank, 0, fstrides[1], fstrides[0], f,
-                             g);
+                             g, sampling);
     } else {
         
         npy_uint32 axes = 0;
         int *tf = pf;
         npy_intp size = 1;
         NI_Iterator iter;
-        // parfor for each line
-        char* pi_pos;
-        int* tf_pos;
-        
-        for (int m = 0; m < rank; m++)
-        {
-            std::cout << "coordinate = " << coor[m] << " ";  
-        }
-        std::cout << std::endl;
 
         for(jj = 0; jj < ishape[d]; jj++) {
             coor[d] = jj;
             _ComputeFT(pi, tf, ishape, istrides, fstrides, rank, d - 1, coor, f,
-                                 g, features);
+                                 g, features, sampling);
             
             pi += istrides[d];
             tf += fstrides[d + 1];
         }
-        // barrier for all threads
 
         for(jj = 0; jj < d; jj++) {
             axes |= (npy_uint32)1 << (jj + 1);
             size *= ishape[jj];
         }
-
-        for (int m = 0; m < rank; m++)
-        {
-            std::cout << "coordinate = " << coor[m] << " ";  
-        }
-        std::cout << std::endl;
 
         std::vector<npy_intp> feature_shapes(rank+1);
         feature_shapes[0] = rank;
@@ -271,27 +253,17 @@ static void _ComputeFT(char *pi, int *pf, npy_intp *ishape,
 
         NI_InitPointIterator(&iter, rank+1, feature_shapes.data(), fstrides);
         NI_SubspaceIterator(&iter, axes);
-        std::cout << "axes = " << axes << std::endl; 
-        std::cout << "iterator->rank_m1 " << iter.rank_m1 << std::endl;
-        std::cout << "iter.strides[0] " << iter.strides[0] << std::endl;
         tf = pf;
-        // par for for 
-
-        std::cout << "fstrides" << fstrides[0] << " " << fstrides[1] << " " << fstrides[2] << std::endl;
-
-
-
-
         for(jj = 0; jj < size; jj++) {
             for(kk = 0; kk < d; kk++)
             {  
                 coor[kk] = iter.coordinates[kk];
             }
             _VoronoiFT(tf, ishape[d], coor, rank, d, fstrides[d + 1],
-                                 fstrides[0], f, g);
+                                 fstrides[0], f, g, sampling);
+            
             NI_ITERATOR_NEXT(iter, tf);
         }
-
         for(kk = 0; kk < d; kk++)
         {
             coor[kk] = 0;
@@ -309,6 +281,8 @@ template <typename T, typename T_int>
 std::tuple<std::vector<T>, std::vector<size_t>>  calculate_distance_and_index(T_int* festures,  int* index_strides, 
                                                                                     int N, int* feature_dims)
 {  
+    auto timer = Timer(); 
+    timer.start();
     size_t size = 1;
     for(int i = 0; i < N; i++)
     {
@@ -361,6 +335,8 @@ std::tuple<std::vector<T>, std::vector<size_t>>  calculate_distance_and_index(T_
     }
     // make a pair of the two vectors
     std::tuple<std::vector<T>, std::vector<size_t>> result = std::make_tuple(distance, indexes); 
+    // std::cout << "distance time = " << timer.stop() << std::endl;
+    printf("distance time = %.10f \n", timer.stop()); 
     return    result; 
     // return distance;
 }
@@ -472,8 +448,8 @@ int NI_EuclideanFeatureTransform(char* input,  int* features, int N, int *dims)
     timer.start();
     _ComputeFT(pi, pf, dims, strides.data(),
                index_strides.data(), N,
-               N - 1, coor, f, g, features);
-    // std::cout << "edt time = "  << timer.stop() << std::endl;
+               N - 1, coor, f, g, features, 0);
+    std::cout << "edt time = "  << timer.stop() << std::endl;
 
     
     //calculate_distance<int, int>(features, index_strides.data(), N, dims);
@@ -494,6 +470,8 @@ int NI_EuclideanFeatureTransform(char* input,  int* features, int N, int *dims)
 template <typename T, typename T_int>
 std::tuple<std::vector<T>, std::vector<size_t>> NI_EuclideanFeatureTransform(char* input, int N, int *dims)
 {
+    auto timer  = Timer(); 
+    timer.start();
     int ii;
     npy_intp coor[NPY_MAXDIMS], mx = 0, jj;
     npy_intp *tmp = NULL, **f = NULL, *g = NULL;
@@ -547,15 +525,15 @@ std::tuple<std::vector<T>, std::vector<size_t>> NI_EuclideanFeatureTransform(cha
     for(jj = 0; jj < mx; jj++) {
         f[jj] = tmp + jj * N;
     }
+    std::cout << "aux time = " << timer.stop() << std::endl;
 
     /* First call of recursive feature transform */
-    auto timer  = Timer();
+    
     timer.start();
     _ComputeFT(pi, pf, dims, strides.data(),
                index_strides.data(), N,
-               N - 1, coor, f, g, features.data());
-    // std::cout << "edt time = "  << timer.stop() << std::endl;
-    // std::cout << "_VoronoiFT_time = " << _VoronoiFT_time << std::endl;
+               N - 1, coor, f, g, features.data(), 0);
+    std::cout << "edt time = "  << timer.stop() << std::endl;
 
 
     free(f);

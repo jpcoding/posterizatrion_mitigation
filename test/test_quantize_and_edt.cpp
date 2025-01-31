@@ -100,7 +100,7 @@ int main(int argc, char** argv)
     readfile(argv[N + 2], data_size, original_data.data());
     double rel_eb = atof(argv[N + 3]); 
 
-    int num_threads = 8;
+    int num_threads = 1;
     if (argc >= N + 7) {
         num_threads = atoi(argv[N + 6]);
         std::cout << "num_threads = " << num_threads << std::endl; 
