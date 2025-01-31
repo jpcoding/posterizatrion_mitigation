@@ -73,13 +73,13 @@ class ComputeGrad
                     double dz =  (1.0*input_data[index + strides[2]] - 1.0*input_data[index - strides[2]])/2.0;
                     max_grad = std::max(max_grad, std::abs(dz)); 
 
-                    if( i == 81  && j == 35 && k == 275)
-                    {
-                        std::cout << "##dx = " << dx << std::endl;
-                        std::cout << "##dy = " << dy << std::endl;
-                        std::cout << "##dz = " << dz << std::endl; 
-                        std::cout << "##max_grad = " << max_grad << std::endl; 
-                    }
+                    // if( i == 81  && j == 35 && k == 275)
+                    // {
+                    //     std::cout << "##dx = " << dx << std::endl;
+                    //     std::cout << "##dy = " << dy << std::endl;
+                    //     std::cout << "##dz = " << dz << std::endl; 
+                    //     std::cout << "##max_grad = " << max_grad << std::endl; 
+                    // }
                     return max_grad; 
                     // std::array<double, 3> grad = {std::abs(dx), std::abs(dy), std::abs(dz)};
                     // return *std::max_element(grad.begin(), grad.end());

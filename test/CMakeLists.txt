@@ -19,3 +19,7 @@ target_link_libraries(test_quantize_and_edt OpenMP::OpenMP_CXX )
 
 add_executable(test_3d_as_slice test_3d_as_slice.cpp)
 target_link_libraries(test_3d_as_slice OpenMP::OpenMP_CXX )
+
+
+add_executable(test_3d_slices test_3d_slices.cpp)
+target_link_libraries(test_3d_slices OpenMP::OpenMP_CXX )

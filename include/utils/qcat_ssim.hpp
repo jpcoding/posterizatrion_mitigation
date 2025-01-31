@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cmath>
+#include <omp.h>
 
 #define K1 0.01
 #define K2 0.03
@@ -282,21 +283,24 @@ namespace PM
         offsetInc0 = windowShift0;
         offsetInc1 = windowShift1;
         offsetInc2 = windowShift2;
+        
+        int num_threads = 8; 
+        omp_set_num_threads( num_threads);
+        size_t max_offset2 = size2 - windowSize2;
+        size_t max_offset1 = size1 - windowSize1;
+        size_t max_offset0 = size0 - windowSize0;
 
-        for (offset2 = 0; offset2 + windowSize2 <= size2; offset2 += offsetInc2)
-        { // MOVING WINDOW
-
-            for (offset1 = 0; offset1 + windowSize1 <= size1; offset1 += offsetInc1)
-            { // MOVING WINDOW
-
-                for (offset0 = 0; offset0 + windowSize0 <= size0; offset0 += offsetInc0)
-                { // MOVING WINDOW
+        #pragma omp parallel for collapse(3) num_threads(num_threads) reduction(+:ssimSum, nw)
+        for (size_t offset2 = 0; offset2 <= max_offset2; offset2 += offsetInc2) {
+            for (size_t offset1 = 0; offset1 <= max_offset1; offset1 += offsetInc1) {
+                for (size_t offset0 = 0; offset0 <= max_offset0; offset0 += offsetInc0) {
                     nw++;
-                    ssimSum += SSIM_3d_calcWindow(oriData, decData, size1, size0, offset0, offset1, offset2, windowSize0, windowSize1, windowSize2);
+                    ssimSum += SSIM_3d_calcWindow(oriData, decData, size1, size0,
+                                                offset0, offset1, offset2,
+                                                windowSize0, windowSize1, windowSize2);
                 }
             }
         }
-
         return ssimSum / nw;
     }
 

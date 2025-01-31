@@ -22,20 +22,48 @@ using npy_double = double;
 using npy_int8 = char;
 #define NPY_MAXDIMS 5
 
-static void VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank, int d, npy_intp stride, npy_intp cstride,
+class EDT_OMP{
+
+
+
+public:
+    EDT_OMP() = default; 
+
+void set_num_threads(int num_threads)
+{
+    this->num_threads = num_threads;
+}
+
+double  get_edt_time()
+{
+    return edt_time;  
+}
+
+double get_distance_time()
+{
+    return distance_time; 
+} 
+
+double get_total_time()
+{
+    return edt_time + distance_time; 
+} 
+
+void reset_timer ()
+{
+    this->edt_time = 0; 
+    this->distance_time = 0; 
+}
+
+
+static void VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
+                     int d, npy_intp stride, npy_intp cstride,
                       npy_intp **f, npy_intp *g) {
     npy_intp l = -1, ii, maxl, idx1, idx2;
     npy_intp jj;
 
-    // auto timer = Timer();
-    // timer.start();
-
-    // for(ii = 0; ii < len; ii++)
-    //     for(jj = 0; jj < rank; jj++)
-    //         f[ii][jj] = *(pf + ii * stride + cstride * jj); // ctrisde = data_size
-
     for (jj = 0; jj < rank; jj++)
-        for (ii = 0; ii < len; ii++) f[ii][jj] = *(pf + ii * stride + cstride * jj);  // ctrisde = data_size
+        for (ii = 0; ii < len; ii++) f[ii][jj] = *(pf + ii * stride + cstride * jj); 
 
     for (ii = 0; ii < len; ii++) {
         if (*(pf + ii * stride) >= 0) {
@@ -99,8 +127,8 @@ static void VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank, int d, np
     }
 }
 
-static void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides, const npy_intp *fstrides,
-                          int rank, npy_intp **f, npy_intp *g, int num_threads = 64) {
+void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides, const npy_intp *fstrides,
+                          int rank, npy_intp **f, npy_intp *g) {
     std::vector<npy_intp> coor(rank, 0);
 
     if (rank == 2) {
@@ -115,7 +143,7 @@ static void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *i
                 local_f_ptrs[i][j] = local_f[i].data() + j * 2;
             }
         }
-        std::cout << "num_threads = " << num_threads << std::endl; 
+        // std::cout << "num_threads = " << num_threads << std::endl;  
 #pragma omp parallel for num_threads(num_threads)
         for (int i = 0; i < ishape[1]; i++) {
             int thread_id = omp_get_thread_num(); 
@@ -222,7 +250,7 @@ static void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *i
 
 template <typename T, typename T_int>
 std::tuple<std::vector<T>, std::vector<size_t>> calculate_distance_and_index(T_int *festures, int *index_strides, int N,
-                                                                             int *feature_dims, int num_threads = 64) {
+                                                                             int *feature_dims) {
     size_t size = 1;
     for (int i = 0; i < N; i++) {
         size *= feature_dims[i];
@@ -267,7 +295,9 @@ std::tuple<std::vector<T>, std::vector<size_t>> calculate_distance_and_index(T_i
         }
     }
     // make a pair of the two vectors
-    std::tuple<std::vector<T>, std::vector<size_t>> result = std::make_tuple(distance, indexes);
+    printf("distance address  = %ld \n", &distance[0]);
+    printf("index address  = %ld \n", &indexes[0]); 
+    std::tuple<std::vector<T>, std::vector<size_t>> result = std::make_tuple(std::move(distance), std::move(indexes));
     return result;
     // return distance;
 }
@@ -280,35 +310,36 @@ std::vector<T> calculate_distance(T_int *festures, int *index_strides, int N, in
     }
 
     std::vector<T> distance(size, 0);
-    T *distance_pos = distance.data();
+    Timer timer; 
+    timer.start();
     if (N == 2) {
+        #pragma omp parallel for collapse(2) num_threads(this->num_threads)
         for (int i = 0; i < feature_dims[0]; i++) {
             for (int j = 0; j < feature_dims[1]; j++) {
                 T_int x = festures[i * index_strides[1] + j * index_strides[2]];
                 T_int y = festures[i * index_strides[1] + j * index_strides[2] + index_strides[0]];
                 double dist = (x - i) * (x - i) + (y - j) * (y - j);
-                *distance_pos = sqrt(dist);
-                distance_pos++;
+                size_t index = x * index_strides[1] + y * index_strides[2]; 
+                distance[index] = sqrt(dist); 
             }
         }
     } else if (N == 3) {
+        #pragma omp parallel for collapse(3) num_threads(this->num_threads)
         for (int i = 0; i < feature_dims[0]; i++) {
             for (int j = 0; j < feature_dims[1]; j++) {
                 for (int k = 0; k < feature_dims[2]; k++) {
-                    T_int x = festures[i * index_strides[1] + j * index_strides[2] + k * index_strides[3]];
-                    T_int y =
-                        festures[i * index_strides[1] + j * index_strides[2] + k * index_strides[3] + index_strides[0]];
-                    T_int z = festures[i * index_strides[1] + j * index_strides[2] + k * index_strides[3] +
-                                       index_strides[0] * 2];
-                    // std::cout << "i = " << i << " j = " << j << " k = " << k << std::endl;
-                    // std::cout <<  "x = " << x << " y = " << y << " z = " << z << std::endl;
+                    size_t index = i * index_strides[1] + j * index_strides[2] + k * index_strides[3]; 
+                    T_int x = festures[index];
+                    T_int y = festures[index + index_strides[0]];
+                    T_int z = festures[index+index_strides[0] * 2];
                     double dist = (x - i) * (x - i) + (y - j) * (y - j) + (z - k) * (z - k);
-                    *distance_pos = sqrt(dist);
-                    distance_pos++;
+                    distance[index] = sqrt(dist);
                 }
             }
         }
     }
+    distance_time = timer.stop(); 
+    printf("distacne address  = %ld \n", &distance[0]); 
     return distance;
 }
 
@@ -359,8 +390,8 @@ int NI_EuclideanFeatureTransform(char *input, int *features, int N, int *dims, i
     /* First call of recursive feature transform */
     auto timer = Timer();
     timer.start();
-    ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N, f, g, num_threads);
-    std::cout << "Real edt time = "  << timer.stop() << std::endl;
+    ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N, f, g);
+    edt_time = timer.stop();
 
     // calculate_distance<int, int>(features, index_strides.data(), N, dims);
     //  auto distance = calculate_distance<double, int> (features, index_strides.data(), N, dims);
@@ -419,27 +450,39 @@ std::tuple<std::vector<T>, std::vector<size_t>> NI_EuclideanFeatureTransform(cha
     }
 
     /* Some temporaries */
-    f = (npy_intp **)malloc(mx * sizeof(npy_intp *));
-    g = (npy_intp *)malloc(mx * sizeof(npy_intp));
-    tmp = (npy_intp *)malloc(mx * N * sizeof(npy_intp));
+    // f = (npy_intp **)malloc(mx * sizeof(npy_intp *));
+    // g = (npy_intp *)malloc(mx * sizeof(npy_intp));
+    // tmp = (npy_intp *)malloc(mx * N * sizeof(npy_intp));
 
-    for (jj = 0; jj < mx; jj++) {
-        f[jj] = tmp + jj * N;
-    }
+    // for (jj = 0; jj < mx; jj++) {
+    //     f[jj] = tmp + jj * N;
+    // }
 
     /* First call of recursive feature transform */
     auto timer = Timer();
     timer.start();
-    ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N, f, g, num_threads);
-    std::cout << "Real edt time = "  << timer.stop() << std::endl;
+    ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N, f, g);
+    edt_time = timer.stop();
     // std::cout << "_VoronoiFT_time = " << _VoronoiFT_time << std::endl;
 
-    free(f);
-    free(g);
-    free(tmp);
+    // free(f);
+    // free(g);
+    // free(tmp);
     return calculate_distance_and_index<T, T_int>(features.data(), index_strides.data(), N, dims);
 }
 
-}  // namespace PM2
+
+private:
+    /* data */
+    Timer timer; 
+    int num_threads = 1;
+    double edt_time = 0;
+    double distance_time = 0; 
+
+
+
+
+};
+} // namespace PM2
 
 #endif  // EDT_TRANSFORM_HPP
