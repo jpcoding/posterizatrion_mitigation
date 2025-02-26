@@ -2,6 +2,7 @@
 #define EDT_TRANSFORM_HPP
 
 #include <cstddef>
+#include <cstdlib>
 #include<vector> 
 #include<iostream>
 #include<cmath>
@@ -334,10 +335,10 @@ std::tuple<std::vector<T>, std::vector<size_t>>  calculate_distance_and_index(T_
         }
     }
     // make a pair of the two vectors
-    std::tuple<std::vector<T>, std::vector<size_t>> result = std::make_tuple(distance, indexes); 
     // std::cout << "distance time = " << timer.stop() << std::endl;
     printf("distance time = %.10f \n", timer.stop()); 
-    return    result; 
+    free(festures); 
+    return    {std::move(distance), std::move(indexes)}; 
     // return distance;
 }
 
@@ -488,8 +489,9 @@ std::tuple<std::vector<T>, std::vector<size_t>> NI_EuclideanFeatureTransform(cha
         }
         input_size *= dims[ii]; 
     }
-    std::vector<int> features(input_size*N, 0);
-    pf = features.data();
+    // std::vector<int> features(input_size*N, 0);
+    int* features = (int*)malloc(input_size*N*sizeof(int));
+    pf = features;
 
     std::vector<int> strides(N);
     std::vector<int> index_strides(N+1);
@@ -532,14 +534,14 @@ std::tuple<std::vector<T>, std::vector<size_t>> NI_EuclideanFeatureTransform(cha
     timer.start();
     _ComputeFT(pi, pf, dims, strides.data(),
                index_strides.data(), N,
-               N - 1, coor, f, g, features.data(), 0);
+               N - 1, coor, f, g, features, 0);
     std::cout << "edt time = "  << timer.stop() << std::endl;
 
 
     free(f);
     free(g);
     free(tmp);
-    return calculate_distance_and_index<T, T_int>(features.data(), index_strides.data(), N, dims);
+    return calculate_distance_and_index<T, T_int>(features, index_strides.data(), N, dims);
 }
 
 

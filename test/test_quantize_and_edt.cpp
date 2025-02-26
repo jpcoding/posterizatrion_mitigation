@@ -127,11 +127,19 @@ int main(int argc, char** argv)
     for (size_t i = 0; i < data_size; i++) {
         quant_inds[i] = quantizer.quantize_and_overwrite(dec_data[i],0)-32768;
     }
-    // write quantized data 
-    // writefile((fs::path(argv[N + 2]).filename().string() + ".qcd").c_str(), dec_data.data(), data_size);
+
+    // check quantization index 
+
     writefile(argv[N+4], dec_data.data(), data_size);
 
     writefile("quant_index.i32", quant_inds.data(), data_size);
+
+
+
+
+    // write quantized data 
+    // writefile((fs::path(argv[N + 2]).filename().string() + ".qcd").c_str(), dec_data.data(), data_size);
+
     // verify the data 
     double psnr, nrmse, max_diff;
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
@@ -141,11 +149,27 @@ int main(int argc, char** argv)
         for (int i = 0; i < N; i++) {
             dims_[i] = dims[i];
         }
-        // auto ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
-        // printf("SSIM = %f\n", ssim);
+        auto ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
+        printf("SSIM = %f\n", ssim);
     
 
     // compensation using edt method
+
+    double threshold = 0.5; 
+    size_t count = 0; 
+    for (size_t i = 0; i < data_size; i++) {
+        if (quant_inds[i] ==0) {
+            count++;
+        }
+    }
+    
+    printf("zero count = %zu\n", count);
+    printf("zero ratio = %f\n", (double)count/data_size);
+    if(count > threshold*data_size) {
+        printf("too many zeros, will not compensate\n");
+        // return 0;
+    }
+
 
     double compensation_factor = 0.9;
     auto timer = Timer(); 
@@ -164,8 +188,8 @@ int main(int argc, char** argv)
 
     // verify the compensated data
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
-    // ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
-    // printf("SSIM = %f\n", ssim);
+     ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
+    printf("SSIM = %f\n", ssim);
     // write the compensation map to file
     writefile(argv[N+5], dec_data.data(), data_size);
     return 0;

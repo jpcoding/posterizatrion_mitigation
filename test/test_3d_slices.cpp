@@ -82,7 +82,7 @@ int main(int argc, char** argv)
     
 
 
-    std::vector<size_t> dim_offsets = {dims[1]*dims[2], dims[2], 1};
+    std::vector<size_t> dim_offsets = {(size_t) dims[1]*dims[2], (size_t)dims[2], (size_t)1};
 
     // compensation by slices 
     // 1. slicing from the first dimension 
