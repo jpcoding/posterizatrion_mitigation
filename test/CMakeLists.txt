@@ -23,3 +23,6 @@ target_link_libraries(test_3d_as_slice OpenMP::OpenMP_CXX )
 
 add_executable(test_3d_slices test_3d_slices.cpp)
 target_link_libraries(test_3d_slices OpenMP::OpenMP_CXX )
+
+add_executable(test_ssim test_ssim.cpp)
+target_link_libraries(test_ssim OpenMP::OpenMP_CXX )
