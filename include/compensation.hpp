@@ -107,9 +107,9 @@ class Compensation {
         int tx, ty, tz;
         char left = 0, right = 0, up = 0, down = 0, front = 0, back = 0;
         int d_left = 0, d_right = 0, d_up = 0, d_down = 0, d_front = 0, d_back = 0;
-        x = index / (dims[1] * dims[2]);
+        x = index / (dims[1] * dims[2]); // slowest dim 
         y = (index / dims[2]) % dims[1];
-        z = index % dims[2];
+        z = index % dims[2]; // fastest dim 
         int cur_quant_index = quant_index[index];
 
         tx = x, ty = y - 1, tz = z;
@@ -315,6 +315,9 @@ class Compensation {
                 boundary_map[i] = 1;
             }
         }
+
+        // write boundary map to file
+        // writefile("boundary.int8", boundary_map.data(), input_size);
         auto timer = Timer();
         // std::cout << "edge point count = " << edge_point_count << std::endl; 
         if (edge_point_count <= compensation_map.size()*0.1)
@@ -346,7 +349,7 @@ class Compensation {
                     sign = 0;
                 }
                 compensation_map[i] = sign * comepnsation_value;
-                sign_map[i] = sign; 
+                sign_map[i] = change_distance[0]; 
             }
         }
         // complete the sign map
@@ -357,6 +360,7 @@ class Compensation {
                 sign_map[i] = sign;
             }
         }
+
         // get the second boundry map 
         auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data());
         // filp and remove the boundary points 
@@ -576,7 +580,7 @@ class Compensation {
         auto boundary_map = get_boundary(quant_index, N, dims.data());
 
         // write boundary map to file 
-        // writefile("boundary.int8", boundary_map.data(), input_size);
+        writefile("boundary3d.int8", boundary_map.data(), input_size);
         // flip the boundary map tag
         std::vector<bool> boundary_mask(input_size, false);
         for (int i = 0; i < input_size; i++) {
@@ -622,6 +626,7 @@ class Compensation {
                 sign_map[i] = sign; 
             }
         }
+        writefile("sign.int8", sign_map.data(), input_size);
         // complete the sign map
         for (size_t i = 0; i < input_size; i++) {
             if (boundary_map[i] == 1)  // non-boundary points ·
@@ -631,7 +636,6 @@ class Compensation {
             }
         }
         // dump the sign map 
-        // writefile("sign.int8", sign_map.data(), input_size);
         // get the second boundry map 
         auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data());
         
@@ -646,13 +650,34 @@ class Compensation {
         // writefile("boundary2.int8", boundary_map2.data(), boundary_map2.size());
         // get the second edt map 
 
+
+        auto rbf = [](double r) -> double {
+            // return std::exp(-0.3*r);
+            // return (1/r) / (1/r + 1); //?  
+            return 1/sqrt(1 + r*r) ; // inverse_multiquadric 
+            // cubic, thin-plate, gaussian, multiquadric, inverse multiquadric
+            // thin-plate: 
+            // return r*r * log(r); 
+            
+        };
+        // calculate the distance between two points
+        auto cal_distance = [this](int i, int j) -> double {
+            int x1 = i / (dims[1]*dims[2]);
+            int y1 = (i / dims[2]) % dims[1];
+            int z1 = i % dims[2];
+            int x2 = j / (dims[1]*dims[2]);
+            int y2 = (j / dims[2]) % dims[1];
+            int z2 = j % dims[2];
+            return std::sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) + (z1-z2)*(z1-z2));
+        };
+
         timer.start();
         edt_omp.reset_timer(); 
         // auto edt_result2 = NI_EuclideanFeatureTransform<double, int>(boundary_map2.data(), N, dims.data());        // 
         auto edt_result2 = edt_omp.NI_EuclideanFeatureTransform(boundary_map2.data(), N, dims.data(), edt_thread_num);       
         std::cout << "edt time = " << timer.stop() << std::endl;
         auto distance_array2 = std::move(edt_result2.distance);
-        // auto indexes2 = std::move(edt_result.indexes);
+        auto indexes2 = std::move(edt_result2.indexes);
         // dump the distance array
         // writefile("distance1.f32", distance_array.data(), input_size);
         // writefile("distance2.f32", distance_array2.data(), input_size);
@@ -665,12 +690,26 @@ class Compensation {
                 double distance2 = distance_array2[i] + 0.5 ;
                 char sign = sign_map[i];
                 double width = distance2 + distance1;
-                double relative_r = (distance1 ) / (width);
+                // double relative_r = (distance1 ) / (width);
                 // double magnitude = (1 - relative_r) * (1 - relative_r);
-                // double magnitude = std::pow(1 - relative_r, 1.5);
+                // // double magnitude = std::pow(1 - relative_r, 1.5);
                 double magnitude = (1/distance1) / (1/distance1 + 1/distance2); 
                 compensation_map[i] = sign * magnitude * comepnsation_value;  
-                // int ii = i / (dims[1]*dims[2]);
+
+
+                // local rbf 
+                // lambda function to calculate the rbf value 
+
+                // // calculate the compensation value
+                // double compensation_value = 0;
+                // double d0 = cal_distance( indexes[i], indexes2[i]);
+                // double a = rbf(0.5);
+                // double b = rbf(d0);
+                // double w0 = a / (a*a - b*b)*sign;
+                // double w1 = b / (-a*a + b*b)*sign;   
+                // compensation_value = (w0 * rbf(distance1) + w1 * rbf(distance2)) * comepnsation_value;
+                // compensation_map[i] = compensation_value; 
+                // // int ii = i / (dims[1]*dims[2]);
                 // int jj = (i / dims[2]) % dims[1];
                 // int kk = i % dims[2];
                 // if( ii == 81  && jj == 35 && kk == 275)

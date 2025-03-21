@@ -52,9 +52,9 @@ class ComputeGrad
             }
             else if(N == 3)
             {
-                int i = index / (dims[1]*dims[2]);
+                int i = index / (dims[1]*dims[2]); // slowest dim 
                 int j = (index / dims[2]) % dims[1];
-                int k = index % dims[2];
+                int k = index % dims[2]; // fastest dim 
                 if(i ==0 || i == dims[0]-1 || j == 0 || j == dims[1]-1 || k == 0 || k == dims[2]-1)
                 {
                     return std::numeric_limits<double>::infinity();

@@ -35,10 +35,10 @@
     velocityx.f32.dec.compensated_data.f32
 
 ./test/test_3d_slices 3 256 384 384 \
-    $DATA/miranda/velocityx.f32 \
+    $DATA/miranda/density.f32 \
     0.001  \
-    velocityx.f32.dec  \
-    velocityx.f32.dec.compensated_data.f32
+    density.f32.dec  \
+    density.f32.dec.compensated_data.f32
 
 ./test/test_quantize_and_edt 3 100 500 500  \
     $DATA/hurricane_100x500x500/CLOUDf48.bin.f32 \
@@ -51,4 +51,4 @@
     $DATA/hurricane_100x500x500/Wf48.bin.f32 \
     0.001  \
     Wf48.f32.dec  \
-    Wf48.f32.dec.compensated_data.f32
+    Wf48.f32.dec.compensated_data.f32 8 

@@ -217,7 +217,7 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
             coor_local[thread_id][1] = i;
             for (int j = 0; j < ishape[0]; j++) {
                 size_t idx = i * istrides[1] + j * istrides[0];
-                if (pi[idx]) {
+                if (pi[idx]) { // non-boundary points 
                     pf[idx*2] = -1;
                 } else {
                     pf[idx*2] = j;
