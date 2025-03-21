@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "mpi.h"
+#include <algorithm>
 
 // width is the fastest changing dimension
 // thsi function works inside a global memory model MPI remote memory access
@@ -87,6 +88,7 @@ void get_sign_map3d(T_quant* w_quant_inds, T_boundary* sign_map, int* w_dims, si
         
     }
     T_quant neighbor_quant[6];
+    double neighbor_grad[3]; 
     for (int i = starts[0]; i < ends[0]; i++) {
         int w_i = mpi_coords[0] == 0 ? i : i + 1;
         for (int j = starts[1]; j < ends[1]; j++) {
@@ -108,7 +110,15 @@ void get_sign_map3d(T_quant* w_quant_inds, T_boundary* sign_map, int* w_dims, si
                 neighbor_quant[3] = back;
                 neighbor_quant[4] = left;
                 neighbor_quant[5] = right;
-                int sign = 0; 
+                neighbor_grad[0] = std::abs(right - left) / 2.0;
+                neighbor_grad[1] = std::abs(down - up) / 2.0;
+                neighbor_grad[2] = std::abs(back - front) / 2.0;
+                double max_grad = *std::max_element(neighbor_grad, neighbor_grad + 3);  
+                if (max_grad == 0) {
+                    sign_map[orig_idx] = 0;
+                    continue;
+                }
+                int sign = 0;
                 for(int l = 0; l < 6; l++) {
                     sign = l%2 == 0 ? -1 : 1; 
                     if (neighbor_quant[l] != cur_quant) {

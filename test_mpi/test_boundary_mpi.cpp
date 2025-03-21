@@ -10,6 +10,7 @@
 #include "SZ3/quantizer/IntegerQuantizer.hpp"
 #include "mpi/compensation.hpp"
 #include "utils/file_utils.hpp"
+#include "mpi/data_exchange.hpp"    
 
 namespace SZ = SZ3;
 
@@ -100,9 +101,15 @@ int main(int argc, char** argv) {
     size_t w_block_strides[3] = {w_block_dims[1] * w_block_dims[2], w_block_dims[2], 1};
     std::vector<int> w_quant_inds(w_block_size, 0);
 
+    // data_exhange3d(T *src, int *src_dims, size_t *src_strides,
+    //                  T *dest, int *dest_dims, size_t *dest_strides, 
+    //                  int *mpi_coords, int *mpi_dims, int &cart_comm)
+    data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims, w_block_strides,
+                   coords, dims, cart_comm);
+
     // now each rank has its own quantization index
     // use mpi_win to createa global memory to get the boundayer points
-    {
+    if(0){
         // use ghost elements for the boundary points
         // need to pass the boundary points to the neighboring blocks
         // check if the block is at the boundary of the global domain to decide which direction to expand the dimension
