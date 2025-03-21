@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <vector>
 #include "mpi.h"
+#include "mpi/mpi_datatype.hpp"
 
 
 template <typename T>
@@ -17,10 +18,13 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
     size_t w_offset;
     size_t orig_idx;
     int mpi_rank;
-    MPI_Datatype mpi_type;
-    MPI_Type_match_size(MPI_TYPECLASS_REAL, sizeof(T), &mpi_type);
-
+    MPI_Datatype mpi_type = mpi_get_type<T>();
+    // MPI_Type_match_size(MPI_TYPECLASS_REAL, sizeof(T), &mpi_type);
     MPI_Comm_rank(cart_comm, &mpi_rank);
+    // if(mpi_rank == 21){
+    //     printf("MPI type size: %d, mpitye %d , mpi_int %d \n", sizeof(T), mpi_type, MPI_INT);
+    // }
+
     for (int i = 0; i < src_dims[0]; i++) {
         int w_i = mpi_coords[0] == 0 ? i : i + 1;
         for (int j = 0; j < src_dims[1]; j++) {
