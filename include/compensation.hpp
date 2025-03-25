@@ -620,6 +620,7 @@ class Compensation {
                 compensation_map[i] = sign_map[i] * comepnsation_value;
             }
         }
+    
         // writefile("sign.int8", sign_map.data(), input_size);
         // complete the sign map
         for (size_t i = 0; i < input_size; i++) {
@@ -629,20 +630,30 @@ class Compensation {
                 sign_map[i] = sign;
             }
         }
+
         // dump the sign map 
+        // writefile("sign.int8", sign_map.data(), input_size);
+
         // get the second boundry map 
         auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data());
+
         
         // filp and remove the boundary points 
+        // for (int i = 0; i < input_size; i++) {
+        //     if (boundary_map2[i] == edge_tag && boundary_map[i] != edge_tag) { 
+        //         boundary_map2[i] = edge_tag;  // boundary lable
+        //     } else {
+        //         boundary_map2[i] = 0;
+        //     }
+        // }
         for (int i = 0; i < input_size; i++) {
-            if (boundary_map2[i] == edge_tag && boundary_map[i] != edge_tag) { 
-                boundary_map2[i] = edge_tag;  // boundary lable
-            } else {
-                boundary_map2[i] = 0;
+            if (boundary_map2[i] == edge_tag && boundary_map[i] == edge_tag) { 
+                boundary_map2[i] = 0;  // boundary lable
             }
         }
-        // writefile("boundary2.int8", boundary_map2.data(), boundary_map2.size());
         // get the second edt map 
+        // writefile("boundary2.int8", boundary_map2.data(), boundary_map2.size());
+
 
 
         auto rbf = [](double r) -> double {
@@ -808,6 +819,7 @@ class Compensation {
                 sign_map[i] = sign; 
             }
         }
+
         // complete the sign map
         for (size_t i = 0; i < input_size; i++) {
             if (boundary_map[i] == 1)  // non-boundary points ·
@@ -816,8 +828,8 @@ class Compensation {
                 sign_map[i] = sign;
             }
         }
+
         // dump the sign map 
-        // writefile("sign.int8", sign_map.data(), input_size);
         // get the second boundry map 
         auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data());
 
@@ -851,8 +863,8 @@ class Compensation {
                 double distance1 = distance_array[i] + 0.5; 
                 double distance2 = distance_array2[i] + 0.5 ;
                 char sign = sign_map[i];
-                double width = distance2 + distance1;
-                double relative_r = (distance1 ) / (width);
+                // double width = distance2 + distance1;
+                // double relative_r = (distance1 ) / (width);
                 // double magnitude = (1 - relative_r) * (1 - relative_r);
                 // double magnitude = std::pow(1 - relative_r, 1.5);
                 double magnitude = (1/distance1) / (1/distance1 + 1/distance2); 

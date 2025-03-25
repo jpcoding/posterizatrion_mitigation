@@ -75,30 +75,30 @@ std::vector<char> get_boundary_3d(T* quant_index, int N, int* dims) {
         }
     }
     // filter boundary
-    for (size_t i = 1; i < dims[0] - 1; i++) {
-        for (size_t j = 1; j < dims[1] - 1; j++) {
-            for (size_t k = 1; k < dims[2] - 1; k++) {
-                size_t idx = i * stride[0] + j * stride[1] + k * stride[2];
-                if (quant_index[idx] != 0) {
-                    int left = quant_index[idx - stride[0]];
-                    int right = quant_index[idx + stride[0]];
-                    int up = quant_index[idx - stride[1]];
-                    int down = quant_index[idx + stride[1]];
-                    int front = quant_index[idx - stride[2]];
-                    int back = quant_index[idx + stride[2]];
-                    if (left == 0 && right == 0 && up == 0 && down == 0 && front == 0 && back == 0) {
-                        boundary[idx] = 0;
-                        boundary[idx - stride[0]] = 0;
-                        boundary[idx + stride[0]] = 0;
-                        boundary[idx - stride[1]] = 0;
-                        boundary[idx + stride[1]] = 0;
-                        boundary[idx - stride[2]] = 0;
-                        boundary[idx + stride[2]] = 0;
-                    }
-                }
-            }
-        }
-    }
+    // for (size_t i = 1; i < dims[0] - 1; i++) {
+    //     for (size_t j = 1; j < dims[1] - 1; j++) {
+    //         for (size_t k = 1; k < dims[2] - 1; k++) {
+    //             size_t idx = i * stride[0] + j * stride[1] + k * stride[2];
+    //             if (quant_index[idx] != 0) {
+    //                 int left = quant_index[idx - stride[0]];
+    //                 int right = quant_index[idx + stride[0]];
+    //                 int up = quant_index[idx - stride[1]];
+    //                 int down = quant_index[idx + stride[1]];
+    //                 int front = quant_index[idx - stride[2]];
+    //                 int back = quant_index[idx + stride[2]];
+    //                 if (left == 0 && right == 0 && up == 0 && down == 0 && front == 0 && back == 0) {
+    //                     boundary[idx] = 0;
+    //                     boundary[idx - stride[0]] = 0;
+    //                     boundary[idx + stride[0]] = 0;
+    //                     boundary[idx - stride[1]] = 0;
+    //                     boundary[idx + stride[1]] = 0;
+    //                     boundary[idx - stride[2]] = 0;
+    //                     boundary[idx + stride[2]] = 0;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
     return boundary;
 }
 

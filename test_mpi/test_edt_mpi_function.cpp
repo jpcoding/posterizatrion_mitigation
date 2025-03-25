@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     printf("Grid dimensions: (%d, %d, %d)\n", dims[0], dims[1], dims[2]);
   }
 
-  {
+  if(0){
 
     char hostname[256];  // Buffer to store the hostname
     if (gethostname(hostname, sizeof(hostname)) == 0) {

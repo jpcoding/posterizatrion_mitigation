@@ -9,8 +9,11 @@
 
 #include "SZ3/quantizer/IntegerQuantizer.hpp"
 #include "mpi/boundary.hpp"
+#include "mpi/compensation.hpp"
+#include "mpi/data_exchange.hpp"
+#include "mpi/edt.hpp"
+#include "mpi/stats.hpp"
 #include "utils/file_utils.hpp"
-#include "mpi/data_exchange.hpp"    
 
 namespace SZ = SZ3;
 
@@ -46,6 +49,9 @@ int main(int argc, char** argv) {
     sprintf(filename, "%s/vx_%d_%d_%d.f32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
     size_t num_elements = 0;
     auto data = readfile<float>(filename, num_elements);
+
+    std::vector<float> orig_copy(data.get(), data.get() + num_elements);
+
     if (data == nullptr) {
         fprintf(stderr, "Error reading file %s\n", filename);
         MPI_Finalize();
@@ -61,21 +67,15 @@ int main(int argc, char** argv) {
     float local_max = *std::max_element(data.get(), data.get() + num_elements);
     float local_min = *std::min_element(data.get(), data.get() + num_elements);
     float global_max, global_min;
-    // just reduce the max and min to get the global max and min to the root
-
     // barrier
     MPI_Barrier(cart_comm);
     double time = MPI_Wtime();  // Start the timer
     MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
     MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
-    double abs_eb = rel_eb * (global_max - global_min);
-
-    double compensation_magnitude = abs_eb *0.9; 
-
-    // broadcast the global max and min to all ranks
     MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
     MPI_Bcast(&global_min, 1, MPI_FLOAT, 0, cart_comm);
-    MPI_Bcast(&abs_eb, 1, MPI_DOUBLE, 0, cart_comm);
+    double abs_eb = rel_eb * (global_max - global_min);
+    double compensation_magnitude = abs_eb * 0.9;
     // printf("Rank %d, block_size: %d\n", mpi_rank, block_size);
     auto quantizer = SZ::LinearQuantizer<float>();
     quantizer.set_eb(abs_eb);
@@ -102,51 +102,75 @@ int main(int argc, char** argv) {
     size_t w_block_strides[3] = {w_block_dims[1] * w_block_dims[2], w_block_dims[2], 1};
     std::vector<int> w_quant_inds(w_block_size, 0);
 
-    // data_exhange3d(T *src, int *src_dims, size_t *src_strides,
-    //                  T *dest, int *dest_dims, size_t *dest_strides, 
-    //                  int *mpi_coords, int *mpi_dims, int &cart_comm)
-    // quantization index exchange 
+    // quantization index exchange
     data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims, w_block_strides,
                    coords, dims, cart_comm);
-    //barrier 
+    // barrier
     MPI_Barrier(cart_comm);
-    // boundary detection and sign map generation 
+    // boundary detection and sign map generation
     std::vector<char> boundary(block_size, 0);
-    std::vector<char> sign_map(block_size, 0); 
-    std::vector<float> compensation_map (block_size, 0.0); 
-    get_boundary_and_sign_map3d<int, char>(w_quant_inds.data(), boundary.data(),sign_map.data(), w_block_dims, w_block_strides, 
-                             block_dims,block_strides, coords, dims, cart_comm);
+    std::vector<char> sign_map(block_size, 0);
+    std::vector<float> compensation_map(block_size, 0.0);
+    if (1)
+        get_boundary_and_sign_map3d<int, char>(w_quant_inds.data(), boundary.data(), sign_map.data(), w_block_dims,
+                                               w_block_strides, block_dims, block_strides, coords, dims, cart_comm);
 
-    // edt to get the distance map and the indexes 
+    // edt to get the distance map and the indexes
 
+    int depth_dim = orig_dims[0] / dims[0];
+    int height_dim = orig_dims[1] / dims[0];
+    int width_dim = orig_dims[2] / dims[0];
+    std::array<int, 3> data_block_dims = {depth_dim, height_dim, width_dim};
+    std::vector<int> index(num_elements, 0);
+    std::vector<float> distance(num_elements, 0.0);
 
-    // complete_sign_map3d<char, float> (sign_map.data(), compensation_map.data(), b_tag, block_size); 
+    if (1) {
+        edt_3d_and_sign_map(boundary.data(), distance.data(), sign_map.data(), data_block_dims.data(), dims, coords,
+                            mpi_rank, size, cart_comm);
+        MPI_Barrier(cart_comm);
+    }
 
-
-
-
-    // exchaneg sign map to create the second boundary map 
-    std::vector<char> w_sign_map(w_block_size, 0); 
-    data_exhange3d(sign_map.data(), block_dims, block_strides, w_sign_map.data(), w_block_dims, w_block_strides,
-                   coords, dims, cart_comm);
+    // complete the sign map for non-edge voxels
+    // fill the compensation map for the edge voxels
+    char b_tag = 1;
+    if (1) {
+        fill_sign_map3d<char, float>(sign_map.data(), index.data(), compensation_map.data(), boundary.data(), b_tag,
+                                     block_size, compensation_magnitude);
+    }
+    MPI_Barrier(cart_comm);
+    std::vector<char> w_sign_map(w_block_size, 0);
+    if (1) {
+        data_exhange3d(sign_map.data(), block_dims, block_strides, w_sign_map.data(), w_block_dims, w_block_strides,
+                       coords, dims, cart_comm);
+    }
+    MPI_Barrier(cart_comm);
     // get the second boundary map
     std::vector<char> boundary_neutral(block_size, 0);
-    get_boundary3d<char, char>(w_sign_map.data(), boundary_neutral.data(),w_block_dims, w_block_strides, 
-                             block_dims,block_strides, coords, dims, cart_comm);
+    if (1) {
+        get_boundary3d<char, char>(w_sign_map.data(), boundary_neutral.data(), w_block_dims, w_block_strides,
+                                   block_dims, block_strides, coords, dims, cart_comm);
+    }
+    if (1) filter_neutral_boundary3d(boundary.data(), boundary_neutral.data(), b_tag, block_size);
 
-    // filter the boundary map 
-    // filter_boundary3d<char>(boundary.data(), boundary_neutral.data(), compensation_map.data(), 
-    //                                  block_dims, block_strides, coords, dims, compensation_magnitude, cart_comm);
-    // combine the two boundary maps
-    // edt on the first boundary map 
-    
-    // edt on the second boundary map
+    MPI_Barrier(cart_comm);
+    std::vector<int> index_neutral(num_elements, 0);
+    std::vector<float> distance_neutral(num_elements, 0.0);
+    if (1) {
+        edt_3d(boundary_neutral.data(), distance_neutral.data(), index_neutral.data(), data_block_dims.data(), dims,
+               coords, mpi_rank, size, cart_comm);
+        MPI_Barrier(cart_comm);
+    }
 
-    // apply compensation to the quantized data. 
-
-
-
-
+    // compensation
+    if (1)
+        compensation_idw(compensation_map.data(), data.get(), distance.data(), distance_neutral.data(), sign_map.data(),
+                         block_size, compensation_magnitude);
+    MPI_Barrier(cart_comm);
+    // calculate the psnr
+    double psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
+    if (mpi_rank == 0) {
+        printf("PSNR: %f\n", psnr);
+    }
 
     // write the quantized data to a file
     char out_filename[100];
@@ -161,6 +185,13 @@ int main(int argc, char** argv) {
     sprintf(out_filename, "%s/vx_%d_%d_%d.boundary.i8", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
     writefile<char>(out_filename, boundary.data(), block_size);
 
+    sprintf(out_filename, "%s/vx_%d_%d_%d.sign.i8", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    writefile<char>(out_filename, sign_map.data(), block_size);
+
+    char distance_filename[100];
+    sprintf(distance_filename, "%s/distance_%d_%d_%d.f32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    writefile<float>(distance_filename, distance.data(), num_elements);
+
     // printf("Rank %d, wrote decomp data to %s\n", mpi_rank, out_filename);
     if (mpi_rank == 0) {
         printf("Global max: %f, Global min: %f, abs_eb = %f \n", global_max, global_min, abs_eb);
@@ -172,7 +203,13 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-
+// if(0){
+//     // second boundary
+//     char out_filename[100];
+//     sprintf(out_filename, "%s/vx_%d_%d_%d.b2.i8", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+//     writefile(out_filename, boundary_neutral.data(), boundary_neutral.size());
+//     MPI_Barrier(cart_comm);
+// }
 // if(0){
 //     // use ghost elements for the boundary points
 //     // need to pass the boundary points to the neighboring blocks
@@ -463,14 +500,14 @@ int main(int argc, char** argv) {
 //                                         {block_dims[0] - 1, block_dims[1] - 1, block_dims[2] - 1}};
 //                 for (int i = 0; i < 8; i++) {
 //                     int target_rank;
-//                     int cur_coords[3] = {target_coords[i][0], target_coords[i][1], target_coords[i][2]}; 
+//                     int cur_coords[3] = {target_coords[i][0], target_coords[i][1], target_coords[i][2]};
 //                     bool valid_coords = true;
 //                     for (int j = 0; j < 3; j++) {
 //                         if (cur_coords[j] < 0 || cur_coords[j] >= dims[j]) {
 //                             valid_coords = false;
 //                             break;
 //                         }
-//                     }  
+//                     }
 //                     if (!valid_coords) {
 //                         continue;
 //                     }
@@ -485,7 +522,7 @@ int main(int argc, char** argv) {
 //             }
 //             // receive
 //             if (1) {
-//                 MPI_Status status;  
+//                 MPI_Status status;
 //                 int source_coords[8][3] = {
 //                     {coords[0] - 1, coords[1] - 1, coords[2] - 1}, {coords[0] - 1, coords[1] - 1, coords[2] + 1},
 //                     {coords[0] - 1, coords[1] + 1, coords[2] - 1}, {coords[0] - 1, coords[1] + 1, coords[2] + 1},
@@ -502,13 +539,13 @@ int main(int argc, char** argv) {
 
 //                 for (int i = 0; i < 8; i++) {
 //                     bool valid_coords = true;
-//                     int* cur_coords = source_coords[i]; 
+//                     int* cur_coords = source_coords[i];
 //                     for (int j = 0; j < 3; j++) {
 //                         if (cur_coords[j] < 0 || cur_coords[j] >= dims[j]) {
 //                             valid_coords = false;
 //                             break;
 //                         }
-//                     }  
+//                     }
 //                     if (!valid_coords) {
 //                         continue;
 //                     }
