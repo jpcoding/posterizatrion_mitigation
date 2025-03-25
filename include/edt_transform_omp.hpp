@@ -217,7 +217,7 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
             coor_local[thread_id][1] = i;
             for (int j = 0; j < ishape[0]; j++) {
                 size_t idx = i * istrides[1] + j * istrides[0];
-                if (pi[idx]) { // non-boundary points 
+                if (pi[idx] != edge_tag) { // non-boundary points 
                     pf[idx*2] = -1;
                 } else {
                     pf[idx*2] = j;
@@ -262,7 +262,7 @@ void ComputeFT2D3D(char *pi, int *pf, npy_intp *ishape, const npy_intp *istrides
             {
                 for (int k = 0; k < ishape[0]; k++) {
                     size_t idx = i * istrides[2] + j * istrides[1] + k * istrides[0];
-                    if (pi[idx]) {
+                    if (pi[idx]!= edge_tag) { 
                         pf[idx*3] = -1;
                     } else {
                         pf[idx*3] = k;
@@ -616,6 +616,7 @@ private:
     double edt_time = 0;
     double distance_time = 0; 
     Timer global_timer; 
+    char edge_tag = 1; 
 
 
 

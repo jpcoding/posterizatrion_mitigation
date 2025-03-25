@@ -209,18 +209,6 @@ class Compensation {
             tx = std::round(x - i * dx);
             ty = std::round(y - i * dy);
             size_t global_index = tx * dims[1] + ty;
-            // if(cur_index == 6045)
-            // {
-            //     std::cout << "### dy " << dy <<  std::endl;
-            //     std::cout << "### dy " << dy*i <<  std::endl;
-            //     std::cout << "### y " << y <<  std::endl;
-            //     std::cout << "### calcl " << y*1.0 - i * dy <<  std::endl;
-            //     std::cout << "### calcl " << int(y - i * dy) <<  std::endl;
-            //     std::cout << "### i  = " << i  <<  std::endl;
-            //     std::cout << "### tx = " << tx << " ty = " << ty << std::endl;
-            //     std::cout << "### global_index = " << global_index << std::endl;
-            // }
-
             if (tx < 0 || tx >= dims[0] || ty < 0 || ty >= dims[1]) {
                 break;
             }
@@ -577,20 +565,25 @@ class Compensation {
 
 
     std::vector<T_data> get_compensation_map_3d() {
-        auto boundary_map = get_boundary(quant_index, N, dims.data());
+        // auto boundary_map = get_boundary(quant_index, N, dims.data());
 
+        auto  bounday_and_sign = get_boundary_and_sign_map_3d(quant_index, N, dims.data()); 
+        auto boundary_map = std::get<0>(bounday_and_sign);
+        auto sign_map = std::get<1>(bounday_and_sign);
+        char edge_tag = 1; 
+ 
         // write boundary map to file 
-        writefile("boundary3d.int8", boundary_map.data(), input_size);
+        // writefile("boundary3d.int8", boundary_map.data(), input_size);
         // flip the boundary map tag
-        std::vector<bool> boundary_mask(input_size, false);
-        for (int i = 0; i < input_size; i++) {
-            if (boundary_map[i] == 1) {
-                boundary_map[i] = 0;  // boundary lable
-                boundary_mask[i] = true; // boundary lable
-            } else {
-                boundary_map[i] = 1;
-            }
-        }
+        // std::vector<bool> boundary_mask(input_size, false);
+        // for (int i = 0; i < input_size; i++) {
+        //     if (boundary_map[i] == 1) {
+        //         boundary_map[i] = 0;  // boundary lable
+        //         boundary_mask[i] = true; // boundary lable
+        //     } else {
+        //         boundary_map[i] = 1;
+        //     }
+        // }
         auto timer = Timer();
 
         timer.start();
@@ -607,29 +600,30 @@ class Compensation {
 
 
         // writefile("distance.f64", distance_array.data(), distance_array.size());
-        std::vector<int> sign_map(input_size, 0);  
+        // std::vector<int> sign_map(input_size, 0);  
         auto grad_computer = ComputeGrad<T_quant>(N, dims.data(), quant_index);
         for (size_t i = 0; i < input_size; i++) {
-            if (boundary_map[i] == 0)  // boundary points
+            if (boundary_map[i] == edge_tag)  // boundary points
             {
-                auto [compensate_direction, change_distance] = 
-                            check_compensate_direction_distance_3d(i);
-                auto max_iter = std::max_element(change_distance.begin(), change_distance.end());
-                auto min_iter = std::min_element(change_distance.begin(), change_distance.end());
-                int direction = std::distance(change_distance.begin(), min_iter);
-                double sign = std::pow(-1.0, direction + 1) * compensate_direction[direction];
-                double grad = grad_computer.get_grad(i);
-                if (grad >= 1.0) {
-                    sign = 0;
-                }
-                compensation_map[i] = sign * comepnsation_value;
-                sign_map[i] = sign; 
+                // auto [compensate_direction, change_distance] = 
+                //             check_compensate_direction_distance_3d(i);
+                // auto max_iter = std::max_element(change_distance.begin(), change_distance.end());
+                // auto min_iter = std::min_element(change_distance.begin(), change_distance.end());
+                // int direction = std::distance(change_distance.begin(), min_iter);
+                // double sign = std::pow(-1.0, direction + 1) * compensate_direction[direction];
+                // double grad = grad_computer.get_grad(i);
+                // if (grad >= 1.0) {
+                //     sign = 0;
+                // }
+                // compensation_map[i] = sign * comepnsation_value;
+                // sign_map[i] = sign; 
+                compensation_map[i] = sign_map[i] * comepnsation_value;
             }
         }
-        writefile("sign.int8", sign_map.data(), input_size);
+        // writefile("sign.int8", sign_map.data(), input_size);
         // complete the sign map
         for (size_t i = 0; i < input_size; i++) {
-            if (boundary_map[i] == 1)  // non-boundary points ·
+            if (boundary_map[i] != edge_tag)  // non-boundary points ·
             {
                 char sign = get_sign(compensation_map[indexes[i]]);
                 sign_map[i] = sign;
@@ -641,10 +635,10 @@ class Compensation {
         
         // filp and remove the boundary points 
         for (int i = 0; i < input_size; i++) {
-            if (boundary_map2[i] == 1 && boundary_mask[i] == false) { 
-                boundary_map2[i] = 0;  // boundary lable
+            if (boundary_map2[i] == edge_tag && boundary_map[i] != edge_tag) { 
+                boundary_map2[i] = edge_tag;  // boundary lable
             } else {
-                boundary_map2[i] = 1;
+                boundary_map2[i] = 0;
             }
         }
         // writefile("boundary2.int8", boundary_map2.data(), boundary_map2.size());

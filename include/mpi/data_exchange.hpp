@@ -1,10 +1,9 @@
 #ifndef MPI_DATA_EXCHANGE_HPP
 #define MPI_DATA_EXCHANGE_HPP
-#include <algorithm>
 #include <vector>
+
 #include "mpi.h"
 #include "mpi/mpi_datatype.hpp"
-
 
 template <typename T>
 void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* dest_dims, size_t* dest_strides,
@@ -57,7 +56,7 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                 MPI_Status status;
                 if (mpi_coords[i] != mpi_dims[i] - 1) {
                     // pass the block_dim[i] - 1 face to mpi_coords[i] + 1
-                    int* quant_ints_start = src + (src_dims[i] - 1) * src_strides[i];
+                    T* quant_ints_start = src + (src_dims[i] - 1) * src_strides[i];
                     for (int j = 0; j < src_dims[face_idx1]; j++) {
                         for (int k = 0; k < src_dims[face_idx2]; k++) {
                             send_buffer[j * src_dims[face_idx2] + k] =
@@ -101,10 +100,10 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                     int j_start = mpi_coords[face_idx1] == 0 ? 0 : 1;
                     int k_start = mpi_coords[face_idx2] == 0 ? 0 : 1;
                     T* w_quant_inds_start = dest + (i_start)*dest_strides[i] + (j_start)*dest_strides[face_idx1] +
-                                              (k_start)*dest_strides[face_idx2];
-                    if (mpi_rank == 21) {
-                        printf("i_start: %d, j_start: %d, k_start: %d\n", i_start, j_start, k_start);
-                    }
+                                            (k_start)*dest_strides[face_idx2];
+                    // if (mpi_rank == 21) {
+                    //     printf("i_start: %d, j_start: %d, k_start: %d\n", i_start, j_start, k_start);
+                    // }
                     int count = 0;
                     for (int j = 0; j < src_dims[face_idx1]; j++) {
                         for (int k = 0; k < src_dims[face_idx2]; k++) {
@@ -122,7 +121,7 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                     int j_start = mpi_coords[face_idx1] == 0 ? 0 : 1;
                     int k_start = mpi_coords[face_idx2] == 0 ? 0 : 1;
                     T* w_quant_inds_start = dest + (i_start)*dest_strides[i] + (j_start)*dest_strides[face_idx1] +
-                                              (k_start)*dest_strides[face_idx2];
+                                            (k_start)*dest_strides[face_idx2];
                     for (int j = 0; j < src_dims[face_idx1]; j++) {
                         for (int k = 0; k < src_dims[face_idx2]; k++) {
                             w_quant_inds_start[j * dest_strides[face_idx1] + k * dest_strides[face_idx2]] =
@@ -188,7 +187,7 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                         mpi_coords[dim_idx3] != mpi_dims[dim_idx3] - 1) {
                         // send the edge to the block with mpi_coords[dim_idx2] + 1, mpi_coords[dim_idx3] + 1
                         T* quant_ints_start = src + (src_dims[dim_idx2] - 1) * src_strides[dim_idx2] +
-                                                (src_dims[dim_idx3] - 1) * src_strides[dim_idx3];
+                                              (src_dims[dim_idx3] - 1) * src_strides[dim_idx3];
                         for (int i = 0; i < src_dims[dim_idx1]; i++) {
                             buffer[i] = quant_ints_start[i * src_strides[dim_idx1]];
                         }
@@ -215,7 +214,7 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                         int j_start = 0;
                         int k_start = 0;
                         T* w_quant_inds_start = dest + (i_start)*dest_strides[dim_idx1] +
-                                                  (j_start)*dest_strides[dim_idx2] + (k_start)*dest_strides[dim_idx3];
+                                                (j_start)*dest_strides[dim_idx2] + (k_start)*dest_strides[dim_idx3];
                         for (int i = 0; i < src_dims[dim_idx1]; i++) {
                             w_quant_inds_start[i * dest_strides[dim_idx1]] = recv_buffer[i];
                         }
@@ -232,7 +231,7 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                         int j_start = 0;
                         int k_start = dest_dims[dim_idx3] - 1;
                         T* w_quant_inds_start = dest + (i_start)*dest_strides[dim_idx1] +
-                                                  (j_start)*dest_strides[dim_idx2] + (k_start)*dest_strides[dim_idx3];
+                                                (j_start)*dest_strides[dim_idx2] + (k_start)*dest_strides[dim_idx3];
                         for (int i = 0; i < src_dims[dim_idx1]; i++) {
                             w_quant_inds_start[i * dest_strides[dim_idx1]] = recv_buffer[i];
                         }
@@ -249,7 +248,7 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                         int j_start = dest_dims[dim_idx2] - 1;
                         int k_start = 0;
                         T* w_quant_inds_start = dest + (i_start)*dest_strides[dim_idx1] +
-                                                  (j_start)*dest_strides[dim_idx2] + (k_start)*dest_strides[dim_idx3];
+                                                (j_start)*dest_strides[dim_idx2] + (k_start)*dest_strides[dim_idx3];
                         for (int i = 0; i < src_dims[dim_idx1]; i++) {
                             w_quant_inds_start[i * dest_strides[dim_idx1]] = recv_buffer[i];
                         }
@@ -267,7 +266,7 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                         int j_start = dest_dims[dim_idx2] - 1;
                         int k_start = dest_dims[dim_idx3] - 1;
                         T* w_quant_inds_start = dest + (i_start)*dest_strides[dim_idx1] +
-                                                  (j_start)*dest_strides[dim_idx2] + (k_start)*dest_strides[dim_idx3];
+                                                (j_start)*dest_strides[dim_idx2] + (k_start)*dest_strides[dim_idx3];
                         for (int i = 0; i < src_dims[dim_idx1]; i++) {
                             w_quant_inds_start[i * dest_strides[dim_idx1]] = recv_buffer[i];
                         }
@@ -307,13 +306,12 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                             break;
                         }
                     }
-                    if (!valid_coords) {
-                        continue;
+                    if (valid_coords) {
+                        int res = MPI_Cart_rank(cart_comm, cur_coords, &target_rank);
+                        size_t idx =
+                            send_index[i][0] * src_strides[0] + send_index[i][1] * src_strides[1] + send_index[i][2];
+                        MPI_Send(&src[idx], 1, mpi_type, target_rank, 0, cart_comm);
                     }
-                    int res = MPI_Cart_rank(cart_comm, cur_coords, &target_rank);
-                    size_t idx =
-                        send_index[i][0] * src_strides[0] + send_index[i][1] * src_strides[1] + send_index[i][2];
-                    MPI_Send(&src[idx], 1, mpi_type, target_rank, 0, cart_comm);
                 }
             }
             // receive
@@ -345,13 +343,13 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
                             break;
                         }
                     }
-                    if (!valid_coords) {
-                        continue;
+                    if (valid_coords) {
+                        int source_ranks;
+                        int res = MPI_Cart_rank(cart_comm, source_coords[i], &source_ranks);
+                        size_t idx =
+                            recv_idx[i][0] * dest_strides[0] + recv_idx[i][1] * dest_strides[1] + recv_idx[i][2];
+                        MPI_Recv(&dest[idx], 1, mpi_type, source_ranks, 0, cart_comm, &status);
                     }
-                    int source_ranks;
-                    int res = MPI_Cart_rank(cart_comm, source_coords[i], &source_ranks);
-                    size_t idx = recv_idx[i][0] * dest_strides[0] + recv_idx[i][1] * dest_strides[1] + recv_idx[i][2];
-                    MPI_Recv(&dest[idx], 1, mpi_type, source_ranks, 0, cart_comm, &status);
                 }
             }
         }

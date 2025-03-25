@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "SZ3/quantizer/IntegerQuantizer.hpp"
-#include "mpi/compensation.hpp"
+#include "mpi/boundary.hpp"
 #include "utils/file_utils.hpp"
 #include "mpi/data_exchange.hpp"    
 
@@ -65,11 +65,12 @@ int main(int argc, char** argv) {
 
     // barrier
     MPI_Barrier(cart_comm);
-
     double time = MPI_Wtime();  // Start the timer
     MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
     MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
     double abs_eb = rel_eb * (global_max - global_min);
+
+    double compensation_magnitude = abs_eb *0.9; 
 
     // broadcast the global max and min to all ranks
     MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
@@ -104,374 +105,46 @@ int main(int argc, char** argv) {
     // data_exhange3d(T *src, int *src_dims, size_t *src_strides,
     //                  T *dest, int *dest_dims, size_t *dest_strides, 
     //                  int *mpi_coords, int *mpi_dims, int &cart_comm)
+    // quantization index exchange 
     data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims, w_block_strides,
                    coords, dims, cart_comm);
-
-    // now each rank has its own quantization index
-    // use mpi_win to createa global memory to get the boundayer points
-    if(0){
-        // use ghost elements for the boundary points
-        // need to pass the boundary points to the neighboring blocks
-        // check if the block is at the boundary of the global domain to decide which direction to expand the dimension
-        // copy the data to the new array
-        size_t w_offset;
-        size_t orig_idx;
-        for (int i = 0; i < block_dims[0]; i++) {
-            int w_i = coords[0] == 0 ? i : i + 1;
-            for (int j = 0; j < block_dims[1]; j++) {
-                int w_j = coords[1] == 0 ? j : j + 1;
-                for (int k = 0; k < block_dims[2]; k++) {
-                    int w_k = coords[2] == 0 ? k : k + 1;
-                    w_offset = w_i * w_block_strides[0] + w_j * w_block_strides[1] + w_k * w_block_strides[2];
-                    orig_idx = i * block_strides[0] + j * block_strides[1] + k * block_strides[2];
-                    w_quant_inds[w_offset] = quant_inds[orig_idx];
-                }
-            }
-        }
-        if (1) {
-            // pass data to the neighboring blocks
-            // usually a block has 8 neighbors
-            // 1. deal with the 6 faces
-            for (int i = 0; i < 3; i++) {
-                int face_idx1 = (i + 1) % 3;
-                int face_idx2 = (i + 2) % 3;
-                int send_buffer_size = block_dims[face_idx1] * block_dims[face_idx2];
-                std::vector<int> send_buffer = std::vector<int>(send_buffer_size, 0);  // send buffer
-                std::vector<int> recv_buffer = std::vector<int>(send_buffer_size, 0);  // receive buffer
-                int recv_coords[3] = {coords[0], coords[1], coords[2]};
-                int receiver_rank;
-                int sender_rank;
-                MPI_Request req;
-                MPI_Request request_send, request_recv;
-                {
-                    MPI_Status status;
-                    if (coords[i] != dims[i] - 1) {
-                        // pass the block_dim[i] - 1 face to coords[i] + 1
-                        int* quant_ints_start = quant_inds.data() + (block_dims[i] - 1) * block_strides[i];
-                        for (int j = 0; j < block_dims[face_idx1]; j++) {
-                            for (int k = 0; k < block_dims[face_idx2]; k++) {
-                                send_buffer[j * block_dims[face_idx2] + k] =
-                                    quant_ints_start[j * block_strides[face_idx1] + k * block_strides[face_idx2]];
-                                // send_buffer[j * block_dims[face_idx2] + k] = -1;
-                            }
-                        }
-                        recv_coords[i] = coords[i] + 1;
-                        MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
-                        MPI_Send(send_buffer.data(), send_buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
-                        // printf("Rank %d, send to %d\n", mpi_rank, receiver_rank);
-                    }
-                    if (coords[i] != 0) {
-                        // pass the 0 face to coords[i] - 1
-                        for (int j = 0; j < block_dims[face_idx1]; j++) {
-                            for (int k = 0; k < block_dims[face_idx2]; k++) {
-                                send_buffer[j * block_dims[face_idx2] + k] =
-                                    quant_inds[j * block_strides[face_idx1] + k * block_strides[face_idx2]];
-                                // send_buffer[j * block_dims[face_idx2] + k] = -1;
-                            }
-                        }
-                        recv_coords[i] = coords[i] - 1;
-                        MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
-                        MPI_Send(send_buffer.data(), send_buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
-                        // printf("Rank %d, send to %d\n", mpi_rank, receiver_rank);
-                    }
-                }
-                // receive
-                {
-                    int source_rank;
-                    int source_coords[3] = {coords[0], coords[1], coords[2]};
-                    MPI_Status status;
-                    if (coords[i] != dims[i] - 1) {
-                        // receive one face and update the working block
-                        source_coords[i] = coords[i] + 1;
-                        MPI_Cart_rank(cart_comm, source_coords, &source_rank);
-                        MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm, &status);
-                        // printf("Rank %d, receive from %d, status %d \n", mpi_rank, receiver_rank,
-                        // (int)status.MPI_ERROR==MPI_SUCCESS);
-                        int i_start = coords[i] == 0 ? block_dims[i] : block_dims[i] + 1;
-                        int j_start = coords[face_idx1] == 0 ? 0 : 1;
-                        int k_start = coords[face_idx2] == 0 ? 0 : 1;
-                        int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[i] +
-                                                  (j_start)*w_block_strides[face_idx1] +
-                                                  (k_start)*w_block_strides[face_idx2];
-                        if (mpi_rank == 21) {
-                            printf("i_start: %d, j_start: %d, k_start: %d\n", i_start, j_start, k_start);
-                        }
-                        int count = 0;
-                        for (int j = 0; j < block_dims[face_idx1]; j++) {
-                            for (int k = 0; k < block_dims[face_idx2]; k++) {
-                                w_quant_inds_start[j * w_block_strides[face_idx1] + k * w_block_strides[face_idx2]] =
-                                    recv_buffer[j * block_dims[face_idx2] + k];
-                            }
-                        }
-                    }
-                    if (coords[i] != 0) {
-                        source_coords[i] = coords[i] - 1;
-                        MPI_Cart_rank(cart_comm, source_coords, &source_rank);
-                        // MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
-                        // &status);
-                        MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm, &status);
-                        // update the working block
-                        int i_start = 0;
-                        int j_start = coords[face_idx1] == 0 ? 0 : 1;
-                        int k_start = coords[face_idx2] == 0 ? 0 : 1;
-                        int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[i] +
-                                                  (j_start)*w_block_strides[face_idx1] +
-                                                  (k_start)*w_block_strides[face_idx2];
-                        for (int j = 0; j < block_dims[face_idx1]; j++) {
-                            for (int k = 0; k < block_dims[face_idx2]; k++) {
-                                w_quant_inds_start[j * w_block_strides[face_idx1] + k * w_block_strides[face_idx2]] =
-                                    recv_buffer[j * block_dims[face_idx2] + k];
-                            }
-                        }
-                    }
-                }
-            }
-            // 2. deal with the 12 edges
-            // edges are send from mpi_block {i,j,k} to {i-1, j-1,k}
-            if (1) {
-                // this edge is aling dim_idx1
-                // thie edge is normal to plane dim_idx2 and dim_idx3
-                for (int dim_idx1 = 0; dim_idx1 < 3; dim_idx1++) {
-                    // send
-                    int dim_idx2 = (dim_idx1 + 1) % 3;
-                    int dim_idx3 = (dim_idx1 + 2) % 3;
-                    int buffer_size = block_dims[dim_idx1];  // the size of the buffer to be sent
-                    std::vector<int> buffer(buffer_size, 0);
-                    std::vector<int> recv_buffer(buffer_size, 0);
-                    int recv_coords[3] = {coords[0], coords[1], coords[2]};
-                    int receiver_rank;
-                    {
-                        // depends on the current block's position, we need to send the edge to the corresponding block
-                        // top left
-                        if (coords[dim_idx2] != 0 && coords[dim_idx3] != 0) {
-                            // send the edge to the block with coords[dim_idx2] - 1, coords[dim_idx3] - 1
-                            for (int i = 0; i < block_dims[dim_idx1]; i++) {
-                                buffer[i] = quant_inds[i * block_strides[dim_idx1]];
-                            }
-                            recv_coords[dim_idx2] = coords[dim_idx2] - 1;
-                            recv_coords[dim_idx3] = coords[dim_idx3] - 1;
-                            MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
-                            MPI_Send(buffer.data(), buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
-                        }
-                        // top right
-                        if (coords[dim_idx2] != 0 && coords[dim_idx3] != dims[dim_idx3] - 1) {
-                            // send the edge to the block with coords[dim_idx2] - 1, coords[dim_idx3] + 1
-                            int* quant_ints_start =
-                                quant_inds.data() + (block_dims[dim_idx3] - 1) * block_strides[dim_idx3];
-                            for (int i = 0; i < block_dims[dim_idx1]; i++) {
-                                buffer[i] = quant_ints_start[i * block_strides[dim_idx1]];
-                            }
-                            recv_coords[dim_idx2] = coords[dim_idx2] - 1;
-                            recv_coords[dim_idx3] = coords[dim_idx3] + 1;
-                            MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
-                            MPI_Send(buffer.data(), buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
-                        }
-                        // bottom left
-                        if (coords[dim_idx2] != dims[dim_idx2] - 1 && coords[dim_idx3] != 0) {
-                            // send the edge to the block with coords[dim_idx2] + 1, coords[dim_idx3] - 1
-                            int* quant_ints_start =
-                                quant_inds.data() + (block_dims[dim_idx2] - 1) * block_strides[dim_idx2];
-                            for (int i = 0; i < block_dims[dim_idx1]; i++) {
-                                buffer[i] = quant_ints_start[i * block_strides[dim_idx1]];
-                            }
-                            recv_coords[dim_idx2] = coords[dim_idx2] + 1;
-                            recv_coords[dim_idx3] = coords[dim_idx3] - 1;
-                            MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
-                            MPI_Send(buffer.data(), buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
-                        }
-                        // bottom right
-                        if (coords[dim_idx2] != dims[dim_idx2] - 1 && coords[dim_idx3] != dims[dim_idx3] - 1) {
-                            // send the edge to the block with coords[dim_idx2] + 1, coords[dim_idx3] + 1
-                            int* quant_ints_start = quant_inds.data() +
-                                                    (block_dims[dim_idx2] - 1) * block_strides[dim_idx2] +
-                                                    (block_dims[dim_idx3] - 1) * block_strides[dim_idx3];
-                            for (int i = 0; i < block_dims[dim_idx1]; i++) {
-                                buffer[i] = quant_ints_start[i * block_strides[dim_idx1]];
-                            }
-                            recv_coords[dim_idx2] = coords[dim_idx2] + 1;
-                            recv_coords[dim_idx3] = coords[dim_idx3] + 1;
-                            MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
-                            MPI_Send(buffer.data(), buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
-                        }
-                    }
-                    // receive
-                    {
-                        int source_rank;
-                        int source_coords[3] = {coords[0], coords[1], coords[2]};
-                        MPI_Status status;
-                        // top left
-                        if (coords[dim_idx2] != 0 && coords[dim_idx3] != 0) {
-                            // receive one edge and update the working block
-                            source_coords[dim_idx2] = coords[dim_idx2] - 1;
-                            source_coords[dim_idx3] = coords[dim_idx3] - 1;
-                            MPI_Cart_rank(cart_comm, source_coords, &source_rank);
-                            MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
-                                     &status);
-                            // update the working block
-                            int i_start = coords[dim_idx1] == 0 ? 0 : 1;
-                            int j_start = 0;
-                            int k_start = 0;
-                            int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[dim_idx1] +
-                                                      (j_start)*w_block_strides[dim_idx2] +
-                                                      (k_start)*w_block_strides[dim_idx3];
-                            for (int i = 0; i < block_dims[dim_idx1]; i++) {
-                                w_quant_inds_start[i * w_block_strides[dim_idx1]] = recv_buffer[i];
-                            }
-                        }
-                        // top right
-                        if (coords[dim_idx2] != 0 && coords[dim_idx3] != dims[dim_idx3] - 1) {
-                            // receive the edge to the block with coords[dim_idx2] - 1, coords[dim_idx3] + 1
-                            source_coords[dim_idx2] = coords[dim_idx2] - 1;
-                            source_coords[dim_idx3] = coords[dim_idx3] + 1;
-                            MPI_Cart_rank(cart_comm, source_coords, &source_rank);
-                            MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
-                                     &status);
-                            // update the working block
-                            int i_start = coords[dim_idx1] == 0 ? 0 : 1;
-                            int j_start = 0;
-                            int k_start = w_block_dims[dim_idx3] - 1;
-                            int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[dim_idx1] +
-                                                      (j_start)*w_block_strides[dim_idx2] +
-                                                      (k_start)*w_block_strides[dim_idx3];
-                            for (int i = 0; i < block_dims[dim_idx1]; i++) {
-                                w_quant_inds_start[i * w_block_strides[dim_idx1]] = recv_buffer[i];
-                            }
-                        }
-                        // bottom left
-                        if (coords[dim_idx2] != dims[dim_idx2] - 1 && coords[dim_idx3] != 0) {
-                            // receive the edge to the block with coords[dim_idx2] + 1, coords[dim_idx3] - 1
-                            source_coords[dim_idx2] = coords[dim_idx2] + 1;
-                            source_coords[dim_idx3] = coords[dim_idx3] - 1;
-                            MPI_Cart_rank(cart_comm, source_coords, &source_rank);
-                            MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
-                                     &status);
-                            // update the working block
-                            int i_start = coords[dim_idx1] == 0 ? 0 : 1;
-                            int j_start = w_block_dims[dim_idx2] - 1;
-                            int k_start = 0;
-                            int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[dim_idx1] +
-                                                      (j_start)*w_block_strides[dim_idx2] +
-                                                      (k_start)*w_block_strides[dim_idx3];
-                            for (int i = 0; i < block_dims[dim_idx1]; i++) {
-                                w_quant_inds_start[i * w_block_strides[dim_idx1]] = recv_buffer[i];
-                            }
-                        }
-                        // bottom right
-                        if (coords[dim_idx2] != dims[dim_idx2] - 1 && coords[dim_idx3] != dims[dim_idx3] - 1) {
-                            // receive the edge to the block with coords[dim_idx2] + 1, coords[dim_idx3] + 1
-                            source_coords[dim_idx2] = coords[dim_idx2] + 1;
-                            source_coords[dim_idx3] = coords[dim_idx3] + 1;
-                            MPI_Cart_rank(cart_comm, source_coords, &source_rank);
-                            MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
-                                     &status);
-                            // update the working block
-                            int i_start = coords[dim_idx1] == 0 ? 0 : 1;
-                            int j_start = w_block_dims[dim_idx2] - 1;
-                            int k_start = w_block_dims[dim_idx3] - 1;
-                            int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[dim_idx1] +
-                                                      (j_start)*w_block_strides[dim_idx2] +
-                                                      (k_start)*w_block_strides[dim_idx3];
-                            for (int i = 0; i < block_dims[dim_idx1]; i++) {
-                                w_quant_inds_start[i * w_block_strides[dim_idx1]] = recv_buffer[i];
-                            }
-                        }
-                    }
-                }
-            }
-            // 3. deal with the 8 corners
-            if (1) {
-                // 8 corners
-                // top left fron
-                // send
-                {
-                    int target_coords[8][3] = {
-                        {coords[0] - 1, coords[1] - 1, coords[2] - 1}, {coords[0] - 1, coords[1] - 1, coords[2] + 1},
-                        {coords[0] - 1, coords[1] + 1, coords[2] - 1}, {coords[0] - 1, coords[1] + 1, coords[2] + 1},
-                        {coords[0] + 1, coords[1] - 1, coords[2] - 1}, {coords[0] + 1, coords[1] - 1, coords[2] + 1},
-                        {coords[0] + 1, coords[1] + 1, coords[2] - 1}, {coords[0] + 1, coords[1] + 1, coords[2] + 1}};
-                    int send_index[8][3] = {{0, 0, 0},
-                                            {0, 0, block_dims[2] - 1},
-                                            {0, block_dims[1] - 1, 0},
-                                            {0, block_dims[1] - 1, block_dims[2] - 1},
-                                            {block_dims[0] - 1, 0, 0},
-                                            {block_dims[0] - 1, 0, block_dims[2] - 1},
-                                            {block_dims[0] - 1, block_dims[1] - 1, 0},
-                                            {block_dims[0] - 1, block_dims[1] - 1, block_dims[2] - 1}};
-                    for (int i = 0; i < 8; i++) {
-                        int target_rank;
-                        int cur_coords[3] = {target_coords[i][0], target_coords[i][1], target_coords[i][2]}; 
-                        bool valid_coords = true;
-                        for (int j = 0; j < 3; j++) {
-                            if (cur_coords[j] < 0 || cur_coords[j] >= dims[j]) {
-                                valid_coords = false;
-                                break;
-                            }
-                        }  
-                        if (!valid_coords) {
-                            continue;
-                        }
-                        int res = MPI_Cart_rank(cart_comm, cur_coords, &target_rank);
-                        if (res == MPI_SUCCESS) {
-                            size_t idx = send_index[i][0] * block_strides[0] + send_index[i][1] * block_strides[1] +
-                                         send_index[i][2];
-                            MPI_Send(&quant_inds[idx], 1, MPI_INT, target_rank, 0, cart_comm);
-                            // MPI_Send(&i, 1, MPI_INT, target_rank, 0, cart_comm);
-                        }
-                    }
-                }
-                // receive
-                if (1) {
-                    MPI_Status status;  
-                    int source_coords[8][3] = {
-                        {coords[0] - 1, coords[1] - 1, coords[2] - 1}, {coords[0] - 1, coords[1] - 1, coords[2] + 1},
-                        {coords[0] - 1, coords[1] + 1, coords[2] - 1}, {coords[0] - 1, coords[1] + 1, coords[2] + 1},
-                        {coords[0] + 1, coords[1] - 1, coords[2] - 1}, {coords[0] + 1, coords[1] - 1, coords[2] + 1},
-                        {coords[0] + 1, coords[1] + 1, coords[2] - 1}, {coords[0] + 1, coords[1] + 1, coords[2] + 1}};
-                    int recv_idx[8][3] = {{0, 0, 0},
-                                          {0, 0, w_block_dims[2] - 1},
-                                          {0, w_block_dims[1] - 1, 0},
-                                          {0, w_block_dims[1] - 1, w_block_dims[2] - 1},
-                                          {w_block_dims[0] - 1, 0, 0},
-                                          {w_block_dims[0] - 1, 0, w_block_dims[2] - 1},
-                                          {w_block_dims[0] - 1, w_block_dims[1] - 1, 0},
-                                          {w_block_dims[0] - 1, w_block_dims[1] - 1, w_block_dims[2] - 1}};
-
-                    for (int i = 0; i < 8; i++) {
-                        bool valid_coords = true;
-                        int* cur_coords = source_coords[i]; 
-                        for (int j = 0; j < 3; j++) {
-                            if (cur_coords[j] < 0 || cur_coords[j] >= dims[j]) {
-                                valid_coords = false;
-                                break;
-                            }
-                        }  
-                        if (!valid_coords) {
-                            continue;
-                        }
-                        int source_ranks;
-                        int res = MPI_Cart_rank(cart_comm, source_coords[i], &source_ranks);
-                        if (res == MPI_SUCCESS) {
-                            size_t idx = recv_idx[i][0] * w_block_strides[0] + recv_idx[i][1] * w_block_strides[1] +
-                                         recv_idx[i][2];
-                            MPI_Recv(&w_quant_inds[idx], 1, MPI_INT, source_ranks, 0, cart_comm, &status);
-                        }
-                    }
-                }
-            }
-        }
-    }
     //barrier 
     MPI_Barrier(cart_comm);
-    // boundary detection 
-    // buffer the boundary points 
+    // boundary detection and sign map generation 
     std::vector<char> boundary(block_size, 0);
-    get_boundary3d<int, char>(w_quant_inds.data(), boundary.data(),w_block_dims, w_block_strides, 
+    std::vector<char> sign_map(block_size, 0); 
+    std::vector<float> compensation_map (block_size, 0.0); 
+    get_boundary_and_sign_map3d<int, char>(w_quant_inds.data(), boundary.data(),sign_map.data(), w_block_dims, w_block_strides, 
                              block_dims,block_strides, coords, dims, cart_comm);
 
-    
+    // edt to get the distance map and the indexes 
 
 
+    // complete_sign_map3d<char, float> (sign_map.data(), compensation_map.data(), b_tag, block_size); 
+
+
+
+
+    // exchaneg sign map to create the second boundary map 
+    std::vector<char> w_sign_map(w_block_size, 0); 
+    data_exhange3d(sign_map.data(), block_dims, block_strides, w_sign_map.data(), w_block_dims, w_block_strides,
+                   coords, dims, cart_comm);
+    // get the second boundary map
+    std::vector<char> boundary_neutral(block_size, 0);
+    get_boundary3d<char, char>(w_sign_map.data(), boundary_neutral.data(),w_block_dims, w_block_strides, 
+                             block_dims,block_strides, coords, dims, cart_comm);
+
+    // filter the boundary map 
+    // filter_boundary3d<char>(boundary.data(), boundary_neutral.data(), compensation_map.data(), 
+    //                                  block_dims, block_strides, coords, dims, compensation_magnitude, cart_comm);
+    // combine the two boundary maps
+    // edt on the first boundary map 
     
+    // edt on the second boundary map
+
+    // apply compensation to the quantized data. 
+
+
 
 
 
@@ -498,3 +171,356 @@ int main(int argc, char** argv) {
     MPI_Finalize();
     return 0;
 }
+
+
+// if(0){
+//     // use ghost elements for the boundary points
+//     // need to pass the boundary points to the neighboring blocks
+//     // check if the block is at the boundary of the global domain to decide which direction to expand the dimension
+//     // copy the data to the new array
+//     size_t w_offset;
+//     size_t orig_idx;
+//     for (int i = 0; i < block_dims[0]; i++) {
+//         int w_i = coords[0] == 0 ? i : i + 1;
+//         for (int j = 0; j < block_dims[1]; j++) {
+//             int w_j = coords[1] == 0 ? j : j + 1;
+//             for (int k = 0; k < block_dims[2]; k++) {
+//                 int w_k = coords[2] == 0 ? k : k + 1;
+//                 w_offset = w_i * w_block_strides[0] + w_j * w_block_strides[1] + w_k * w_block_strides[2];
+//                 orig_idx = i * block_strides[0] + j * block_strides[1] + k * block_strides[2];
+//                 w_quant_inds[w_offset] = quant_inds[orig_idx];
+//             }
+//         }
+//     }
+//     if (1) {
+//         // pass data to the neighboring blocks
+//         // usually a block has 8 neighbors
+//         // 1. deal with the 6 faces
+//         for (int i = 0; i < 3; i++) {
+//             int face_idx1 = (i + 1) % 3;
+//             int face_idx2 = (i + 2) % 3;
+//             int send_buffer_size = block_dims[face_idx1] * block_dims[face_idx2];
+//             std::vector<int> send_buffer = std::vector<int>(send_buffer_size, 0);  // send buffer
+//             std::vector<int> recv_buffer = std::vector<int>(send_buffer_size, 0);  // receive buffer
+//             int recv_coords[3] = {coords[0], coords[1], coords[2]};
+//             int receiver_rank;
+//             int sender_rank;
+//             MPI_Request req;
+//             MPI_Request request_send, request_recv;
+//             {
+//                 MPI_Status status;
+//                 if (coords[i] != dims[i] - 1) {
+//                     // pass the block_dim[i] - 1 face to coords[i] + 1
+//                     int* quant_ints_start = quant_inds.data() + (block_dims[i] - 1) * block_strides[i];
+//                     for (int j = 0; j < block_dims[face_idx1]; j++) {
+//                         for (int k = 0; k < block_dims[face_idx2]; k++) {
+//                             send_buffer[j * block_dims[face_idx2] + k] =
+//                                 quant_ints_start[j * block_strides[face_idx1] + k * block_strides[face_idx2]];
+//                             // send_buffer[j * block_dims[face_idx2] + k] = -1;
+//                         }
+//                     }
+//                     recv_coords[i] = coords[i] + 1;
+//                     MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
+//                     MPI_Send(send_buffer.data(), send_buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
+//                     // printf("Rank %d, send to %d\n", mpi_rank, receiver_rank);
+//                 }
+//                 if (coords[i] != 0) {
+//                     // pass the 0 face to coords[i] - 1
+//                     for (int j = 0; j < block_dims[face_idx1]; j++) {
+//                         for (int k = 0; k < block_dims[face_idx2]; k++) {
+//                             send_buffer[j * block_dims[face_idx2] + k] =
+//                                 quant_inds[j * block_strides[face_idx1] + k * block_strides[face_idx2]];
+//                             // send_buffer[j * block_dims[face_idx2] + k] = -1;
+//                         }
+//                     }
+//                     recv_coords[i] = coords[i] - 1;
+//                     MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
+//                     MPI_Send(send_buffer.data(), send_buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
+//                     // printf("Rank %d, send to %d\n", mpi_rank, receiver_rank);
+//                 }
+//             }
+//             // receive
+//             {
+//                 int source_rank;
+//                 int source_coords[3] = {coords[0], coords[1], coords[2]};
+//                 MPI_Status status;
+//                 if (coords[i] != dims[i] - 1) {
+//                     // receive one face and update the working block
+//                     source_coords[i] = coords[i] + 1;
+//                     MPI_Cart_rank(cart_comm, source_coords, &source_rank);
+//                     MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm, &status);
+//                     // printf("Rank %d, receive from %d, status %d \n", mpi_rank, receiver_rank,
+//                     // (int)status.MPI_ERROR==MPI_SUCCESS);
+//                     int i_start = coords[i] == 0 ? block_dims[i] : block_dims[i] + 1;
+//                     int j_start = coords[face_idx1] == 0 ? 0 : 1;
+//                     int k_start = coords[face_idx2] == 0 ? 0 : 1;
+//                     int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[i] +
+//                                               (j_start)*w_block_strides[face_idx1] +
+//                                               (k_start)*w_block_strides[face_idx2];
+//                     if (mpi_rank == 21) {
+//                         printf("i_start: %d, j_start: %d, k_start: %d\n", i_start, j_start, k_start);
+//                     }
+//                     int count = 0;
+//                     for (int j = 0; j < block_dims[face_idx1]; j++) {
+//                         for (int k = 0; k < block_dims[face_idx2]; k++) {
+//                             w_quant_inds_start[j * w_block_strides[face_idx1] + k * w_block_strides[face_idx2]] =
+//                                 recv_buffer[j * block_dims[face_idx2] + k];
+//                         }
+//                     }
+//                 }
+//                 if (coords[i] != 0) {
+//                     source_coords[i] = coords[i] - 1;
+//                     MPI_Cart_rank(cart_comm, source_coords, &source_rank);
+//                     // MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
+//                     // &status);
+//                     MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm, &status);
+//                     // update the working block
+//                     int i_start = 0;
+//                     int j_start = coords[face_idx1] == 0 ? 0 : 1;
+//                     int k_start = coords[face_idx2] == 0 ? 0 : 1;
+//                     int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[i] +
+//                                               (j_start)*w_block_strides[face_idx1] +
+//                                               (k_start)*w_block_strides[face_idx2];
+//                     for (int j = 0; j < block_dims[face_idx1]; j++) {
+//                         for (int k = 0; k < block_dims[face_idx2]; k++) {
+//                             w_quant_inds_start[j * w_block_strides[face_idx1] + k * w_block_strides[face_idx2]] =
+//                                 recv_buffer[j * block_dims[face_idx2] + k];
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//         // 2. deal with the 12 edges
+//         // edges are send from mpi_block {i,j,k} to {i-1, j-1,k}
+//         if (1) {
+//             // this edge is aling dim_idx1
+//             // thie edge is normal to plane dim_idx2 and dim_idx3
+//             for (int dim_idx1 = 0; dim_idx1 < 3; dim_idx1++) {
+//                 // send
+//                 int dim_idx2 = (dim_idx1 + 1) % 3;
+//                 int dim_idx3 = (dim_idx1 + 2) % 3;
+//                 int buffer_size = block_dims[dim_idx1];  // the size of the buffer to be sent
+//                 std::vector<int> buffer(buffer_size, 0);
+//                 std::vector<int> recv_buffer(buffer_size, 0);
+//                 int recv_coords[3] = {coords[0], coords[1], coords[2]};
+//                 int receiver_rank;
+//                 {
+//                     // depends on the current block's position, we need to send the edge to the corresponding block
+//                     // top left
+//                     if (coords[dim_idx2] != 0 && coords[dim_idx3] != 0) {
+//                         // send the edge to the block with coords[dim_idx2] - 1, coords[dim_idx3] - 1
+//                         for (int i = 0; i < block_dims[dim_idx1]; i++) {
+//                             buffer[i] = quant_inds[i * block_strides[dim_idx1]];
+//                         }
+//                         recv_coords[dim_idx2] = coords[dim_idx2] - 1;
+//                         recv_coords[dim_idx3] = coords[dim_idx3] - 1;
+//                         MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
+//                         MPI_Send(buffer.data(), buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
+//                     }
+//                     // top right
+//                     if (coords[dim_idx2] != 0 && coords[dim_idx3] != dims[dim_idx3] - 1) {
+//                         // send the edge to the block with coords[dim_idx2] - 1, coords[dim_idx3] + 1
+//                         int* quant_ints_start =
+//                             quant_inds.data() + (block_dims[dim_idx3] - 1) * block_strides[dim_idx3];
+//                         for (int i = 0; i < block_dims[dim_idx1]; i++) {
+//                             buffer[i] = quant_ints_start[i * block_strides[dim_idx1]];
+//                         }
+//                         recv_coords[dim_idx2] = coords[dim_idx2] - 1;
+//                         recv_coords[dim_idx3] = coords[dim_idx3] + 1;
+//                         MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
+//                         MPI_Send(buffer.data(), buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
+//                     }
+//                     // bottom left
+//                     if (coords[dim_idx2] != dims[dim_idx2] - 1 && coords[dim_idx3] != 0) {
+//                         // send the edge to the block with coords[dim_idx2] + 1, coords[dim_idx3] - 1
+//                         int* quant_ints_start =
+//                             quant_inds.data() + (block_dims[dim_idx2] - 1) * block_strides[dim_idx2];
+//                         for (int i = 0; i < block_dims[dim_idx1]; i++) {
+//                             buffer[i] = quant_ints_start[i * block_strides[dim_idx1]];
+//                         }
+//                         recv_coords[dim_idx2] = coords[dim_idx2] + 1;
+//                         recv_coords[dim_idx3] = coords[dim_idx3] - 1;
+//                         MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
+//                         MPI_Send(buffer.data(), buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
+//                     }
+//                     // bottom right
+//                     if (coords[dim_idx2] != dims[dim_idx2] - 1 && coords[dim_idx3] != dims[dim_idx3] - 1) {
+//                         // send the edge to the block with coords[dim_idx2] + 1, coords[dim_idx3] + 1
+//                         int* quant_ints_start = quant_inds.data() +
+//                                                 (block_dims[dim_idx2] - 1) * block_strides[dim_idx2] +
+//                                                 (block_dims[dim_idx3] - 1) * block_strides[dim_idx3];
+//                         for (int i = 0; i < block_dims[dim_idx1]; i++) {
+//                             buffer[i] = quant_ints_start[i * block_strides[dim_idx1]];
+//                         }
+//                         recv_coords[dim_idx2] = coords[dim_idx2] + 1;
+//                         recv_coords[dim_idx3] = coords[dim_idx3] + 1;
+//                         MPI_Cart_rank(cart_comm, recv_coords, &receiver_rank);
+//                         MPI_Send(buffer.data(), buffer.size(), MPI_INT, receiver_rank, 0, cart_comm);
+//                     }
+//                 }
+//                 // receive
+//                 {
+//                     int source_rank;
+//                     int source_coords[3] = {coords[0], coords[1], coords[2]};
+//                     MPI_Status status;
+//                     // top left
+//                     if (coords[dim_idx2] != 0 && coords[dim_idx3] != 0) {
+//                         // receive one edge and update the working block
+//                         source_coords[dim_idx2] = coords[dim_idx2] - 1;
+//                         source_coords[dim_idx3] = coords[dim_idx3] - 1;
+//                         MPI_Cart_rank(cart_comm, source_coords, &source_rank);
+//                         MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
+//                                  &status);
+//                         // update the working block
+//                         int i_start = coords[dim_idx1] == 0 ? 0 : 1;
+//                         int j_start = 0;
+//                         int k_start = 0;
+//                         int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[dim_idx1] +
+//                                                   (j_start)*w_block_strides[dim_idx2] +
+//                                                   (k_start)*w_block_strides[dim_idx3];
+//                         for (int i = 0; i < block_dims[dim_idx1]; i++) {
+//                             w_quant_inds_start[i * w_block_strides[dim_idx1]] = recv_buffer[i];
+//                         }
+//                     }
+//                     // top right
+//                     if (coords[dim_idx2] != 0 && coords[dim_idx3] != dims[dim_idx3] - 1) {
+//                         // receive the edge to the block with coords[dim_idx2] - 1, coords[dim_idx3] + 1
+//                         source_coords[dim_idx2] = coords[dim_idx2] - 1;
+//                         source_coords[dim_idx3] = coords[dim_idx3] + 1;
+//                         MPI_Cart_rank(cart_comm, source_coords, &source_rank);
+//                         MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
+//                                  &status);
+//                         // update the working block
+//                         int i_start = coords[dim_idx1] == 0 ? 0 : 1;
+//                         int j_start = 0;
+//                         int k_start = w_block_dims[dim_idx3] - 1;
+//                         int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[dim_idx1] +
+//                                                   (j_start)*w_block_strides[dim_idx2] +
+//                                                   (k_start)*w_block_strides[dim_idx3];
+//                         for (int i = 0; i < block_dims[dim_idx1]; i++) {
+//                             w_quant_inds_start[i * w_block_strides[dim_idx1]] = recv_buffer[i];
+//                         }
+//                     }
+//                     // bottom left
+//                     if (coords[dim_idx2] != dims[dim_idx2] - 1 && coords[dim_idx3] != 0) {
+//                         // receive the edge to the block with coords[dim_idx2] + 1, coords[dim_idx3] - 1
+//                         source_coords[dim_idx2] = coords[dim_idx2] + 1;
+//                         source_coords[dim_idx3] = coords[dim_idx3] - 1;
+//                         MPI_Cart_rank(cart_comm, source_coords, &source_rank);
+//                         MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
+//                                  &status);
+//                         // update the working block
+//                         int i_start = coords[dim_idx1] == 0 ? 0 : 1;
+//                         int j_start = w_block_dims[dim_idx2] - 1;
+//                         int k_start = 0;
+//                         int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[dim_idx1] +
+//                                                   (j_start)*w_block_strides[dim_idx2] +
+//                                                   (k_start)*w_block_strides[dim_idx3];
+//                         for (int i = 0; i < block_dims[dim_idx1]; i++) {
+//                             w_quant_inds_start[i * w_block_strides[dim_idx1]] = recv_buffer[i];
+//                         }
+//                     }
+//                     // bottom right
+//                     if (coords[dim_idx2] != dims[dim_idx2] - 1 && coords[dim_idx3] != dims[dim_idx3] - 1) {
+//                         // receive the edge to the block with coords[dim_idx2] + 1, coords[dim_idx3] + 1
+//                         source_coords[dim_idx2] = coords[dim_idx2] + 1;
+//                         source_coords[dim_idx3] = coords[dim_idx3] + 1;
+//                         MPI_Cart_rank(cart_comm, source_coords, &source_rank);
+//                         MPI_Recv(recv_buffer.data(), recv_buffer.size(), MPI_INT, source_rank, 0, cart_comm,
+//                                  &status);
+//                         // update the working block
+//                         int i_start = coords[dim_idx1] == 0 ? 0 : 1;
+//                         int j_start = w_block_dims[dim_idx2] - 1;
+//                         int k_start = w_block_dims[dim_idx3] - 1;
+//                         int* w_quant_inds_start = w_quant_inds.data() + (i_start)*w_block_strides[dim_idx1] +
+//                                                   (j_start)*w_block_strides[dim_idx2] +
+//                                                   (k_start)*w_block_strides[dim_idx3];
+//                         for (int i = 0; i < block_dims[dim_idx1]; i++) {
+//                             w_quant_inds_start[i * w_block_strides[dim_idx1]] = recv_buffer[i];
+//                         }
+//                     }
+//                 }
+//             }
+//         }
+//         // 3. deal with the 8 corners
+//         if (1) {
+//             // 8 corners
+//             // top left fron
+//             // send
+//             {
+//                 int target_coords[8][3] = {
+//                     {coords[0] - 1, coords[1] - 1, coords[2] - 1}, {coords[0] - 1, coords[1] - 1, coords[2] + 1},
+//                     {coords[0] - 1, coords[1] + 1, coords[2] - 1}, {coords[0] - 1, coords[1] + 1, coords[2] + 1},
+//                     {coords[0] + 1, coords[1] - 1, coords[2] - 1}, {coords[0] + 1, coords[1] - 1, coords[2] + 1},
+//                     {coords[0] + 1, coords[1] + 1, coords[2] - 1}, {coords[0] + 1, coords[1] + 1, coords[2] + 1}};
+//                 int send_index[8][3] = {{0, 0, 0},
+//                                         {0, 0, block_dims[2] - 1},
+//                                         {0, block_dims[1] - 1, 0},
+//                                         {0, block_dims[1] - 1, block_dims[2] - 1},
+//                                         {block_dims[0] - 1, 0, 0},
+//                                         {block_dims[0] - 1, 0, block_dims[2] - 1},
+//                                         {block_dims[0] - 1, block_dims[1] - 1, 0},
+//                                         {block_dims[0] - 1, block_dims[1] - 1, block_dims[2] - 1}};
+//                 for (int i = 0; i < 8; i++) {
+//                     int target_rank;
+//                     int cur_coords[3] = {target_coords[i][0], target_coords[i][1], target_coords[i][2]}; 
+//                     bool valid_coords = true;
+//                     for (int j = 0; j < 3; j++) {
+//                         if (cur_coords[j] < 0 || cur_coords[j] >= dims[j]) {
+//                             valid_coords = false;
+//                             break;
+//                         }
+//                     }  
+//                     if (!valid_coords) {
+//                         continue;
+//                     }
+//                     int res = MPI_Cart_rank(cart_comm, cur_coords, &target_rank);
+//                     if (res == MPI_SUCCESS) {
+//                         size_t idx = send_index[i][0] * block_strides[0] + send_index[i][1] * block_strides[1] +
+//                                      send_index[i][2];
+//                         MPI_Send(&quant_inds[idx], 1, MPI_INT, target_rank, 0, cart_comm);
+//                         // MPI_Send(&i, 1, MPI_INT, target_rank, 0, cart_comm);
+//                     }
+//                 }
+//             }
+//             // receive
+//             if (1) {
+//                 MPI_Status status;  
+//                 int source_coords[8][3] = {
+//                     {coords[0] - 1, coords[1] - 1, coords[2] - 1}, {coords[0] - 1, coords[1] - 1, coords[2] + 1},
+//                     {coords[0] - 1, coords[1] + 1, coords[2] - 1}, {coords[0] - 1, coords[1] + 1, coords[2] + 1},
+//                     {coords[0] + 1, coords[1] - 1, coords[2] - 1}, {coords[0] + 1, coords[1] - 1, coords[2] + 1},
+//                     {coords[0] + 1, coords[1] + 1, coords[2] - 1}, {coords[0] + 1, coords[1] + 1, coords[2] + 1}};
+//                 int recv_idx[8][3] = {{0, 0, 0},
+//                                       {0, 0, w_block_dims[2] - 1},
+//                                       {0, w_block_dims[1] - 1, 0},
+//                                       {0, w_block_dims[1] - 1, w_block_dims[2] - 1},
+//                                       {w_block_dims[0] - 1, 0, 0},
+//                                       {w_block_dims[0] - 1, 0, w_block_dims[2] - 1},
+//                                       {w_block_dims[0] - 1, w_block_dims[1] - 1, 0},
+//                                       {w_block_dims[0] - 1, w_block_dims[1] - 1, w_block_dims[2] - 1}};
+
+//                 for (int i = 0; i < 8; i++) {
+//                     bool valid_coords = true;
+//                     int* cur_coords = source_coords[i]; 
+//                     for (int j = 0; j < 3; j++) {
+//                         if (cur_coords[j] < 0 || cur_coords[j] >= dims[j]) {
+//                             valid_coords = false;
+//                             break;
+//                         }
+//                     }  
+//                     if (!valid_coords) {
+//                         continue;
+//                     }
+//                     int source_ranks;
+//                     int res = MPI_Cart_rank(cart_comm, source_coords[i], &source_ranks);
+//                     if (res == MPI_SUCCESS) {
+//                         size_t idx = recv_idx[i][0] * w_block_strides[0] + recv_idx[i][1] * w_block_strides[1] +
+//                                      recv_idx[i][2];
+//                         MPI_Recv(&w_quant_inds[idx], 1, MPI_INT, source_ranks, 0, cart_comm, &status);
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }

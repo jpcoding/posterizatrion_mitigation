@@ -18,6 +18,10 @@ int main(int argc, char *argv[]) {
 
 
   int orig_dims[3] = {256, 384, 384};
+  orig_dims[0] = atoi(argv[5]);
+  orig_dims[1] = atoi(argv[6]);
+  orig_dims[2] = atoi(argv[7]);
+
   int periods[3] = {0, 0, 0}; // No periodicity in any dimension
   int coords[3] = {0, 0, 0};  // Coords of this process in the grid
   MPI_Comm cart_comm;
@@ -32,9 +36,11 @@ int main(int argc, char *argv[]) {
   if (mpi_rank == 0) {
     printf("Number of processes: %d\n", size);
     printf("Grid dimensions: (%d, %d, %d)\n", dims[0], dims[1], dims[2]);
+    printf("orig_dims = %d %d %d\n", orig_dims[0], orig_dims[1], orig_dims[2]);
+
   }
 
-  {
+  if(0){
 
     char hostname[256];  // Buffer to store the hostname
     if (gethostname(hostname, sizeof(hostname)) == 0) {
@@ -97,6 +103,11 @@ int main(int argc, char *argv[]) {
   int height_dim = orig_dims[1] / dims[0];
   int width_dim = orig_dims[2] / dims[0];
   std::array<int, 3> data_block_dims = {depth_dim, height_dim, width_dim};
+
+  if(mpi_rank == 0)
+  {
+    printf("data_block_dims = %d %d %d\n", data_block_dims[0], data_block_dims[1], data_block_dims[2]); 
+  }
 
   int max_dim =
       *std::max_element(data_block_dims.begin(), data_block_dims.end());
@@ -208,7 +219,9 @@ int main(int argc, char *argv[]) {
 
   time = MPI_Wtime() - time;
   if (mpi_rank == 0)
+  {
     printf("Rank %d, time: %f\n", mpi_rank, time);
+  }
 
   // calculate distance
 
