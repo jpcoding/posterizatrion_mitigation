@@ -617,7 +617,7 @@ class Compensation {
                 // }
                 // compensation_map[i] = sign * comepnsation_value;
                 // sign_map[i] = sign; 
-                compensation_map[i] = sign_map[i] * comepnsation_value;
+                // compensation_map[i] = sign_map[i] * comepnsation_value;
             }
         }
     
@@ -626,8 +626,7 @@ class Compensation {
         for (size_t i = 0; i < input_size; i++) {
             if (boundary_map[i] != edge_tag)  // non-boundary points ·
             {
-                char sign = get_sign(compensation_map[indexes[i]]);
-                sign_map[i] = sign;
+                sign_map[i] = sign_map[indexes[i]];
             }
         }
 

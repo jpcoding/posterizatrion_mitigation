@@ -133,10 +133,10 @@ int main(int argc, char** argv) {
     // complete the sign map for non-edge voxels
     // fill the compensation map for the edge voxels
     char b_tag = 1;
-    if (1) {
-        fill_sign_map3d<char, float>(sign_map.data(), index.data(), compensation_map.data(), boundary.data(), b_tag,
-                                     block_size, compensation_magnitude);
-    }
+    // if (1) {
+    //     fill_sign_map3d<char, float>(sign_map.data(), index.data(), compensation_map.data(), boundary.data(), b_tag,
+    //                                  block_size, compensation_magnitude);
+    // }
     MPI_Barrier(cart_comm);
     std::vector<char> w_sign_map(w_block_size, 0);
     if (1) {

@@ -136,11 +136,11 @@ void get_boundary_and_sign_map3d(T_quant* w_quant_inds, T_boundary* boundary, T_
 template <typename T_boundary, typename T_data, typename T_index>
 void fill_sign_map3d(T_boundary* sign_map, T_index* index, T_data* compensation_map, T_boundary* boundary,
                      T_boundary b_tag, size_t block_size, T_data compensation) {
-    for (size_t i = 0; i < block_size; i++) {
-        if (sign_map[i] == b_tag) {
-            compensation_map[i] = sign_map[i] * compensation;
-        }
-    }
+    // for (size_t i = 0; i < block_size; i++) {
+    //     if (sign_map[i] == b_tag) {
+    //         compensation_map[i] = sign_map[i] * compensation;
+    //     }
+    // }
 }
 
 template <typename T_boundary>
