@@ -2,3 +2,4 @@ build
 *f32
 *f64
 build*
+.cache

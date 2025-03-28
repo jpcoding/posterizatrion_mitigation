@@ -26,7 +26,7 @@
     $DATA/miranda/velocityx.f32 \
     0.001  \
     velocityx.f32.dec  \
-    velocityx.f32.dec.compensated_data.f32
+    velocityx.f32.dec.compensated_data.f32 16
 
 ./test/test_3d_as_slice 3 256 384 384 \
     $DATA/miranda/velocityx.f32 \
