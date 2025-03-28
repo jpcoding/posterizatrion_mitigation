@@ -14,6 +14,7 @@
 #include "mpi/edt.hpp"
 #include "mpi/stats.hpp"
 #include "utils/file_utils.hpp"
+#include "mpi/mpi_datatype.hpp" 
 
 namespace SZ = SZ3;
 
@@ -26,8 +27,14 @@ int main(int argc, char** argv) {
     dims[2] = atoi(argv[3]);
     double rel_eb = atof(argv[4]);     // Relative error bound
     std::string dir_prefix = argv[5];  // Directory prefix for the blocks
+    std::string name_prefix = argv[6];  // Name prefix for the blocks 
 
     int orig_dims[3] = {256, 384, 384};
+    orig_dims[0] = atoi(argv[7]);
+    orig_dims[1] = atoi(argv[8]);
+    orig_dims[2] = atoi(argv[9]);
+    
+
     int periods[3] = {0, 0, 0};  // No periodicity in any dimension
     int coords[3] = {0, 0, 0};   // Coords of this process in the grid
     MPI_Comm cart_comm;
@@ -46,7 +53,7 @@ int main(int argc, char** argv) {
 
     // read data for each rank
     char filename[100];
-    sprintf(filename, "%s/vx_%d_%d_%d.f32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    sprintf(filename, "%s/%s_%d_%d_%d.f32", dir_prefix.c_str(), name_prefix.c_str(), coords[0], coords[1], coords[2]);
     size_t num_elements = 0;
     auto data = readfile<float>(filename, num_elements);
 
@@ -54,13 +61,14 @@ int main(int argc, char** argv) {
 
     if (data == nullptr) {
         fprintf(stderr, "Error reading file %s\n", filename);
+        printf("Rank %d, num_elements: %ld\n", mpi_rank, num_elements);
         MPI_Finalize();
         return 1;
     }
     int block_dims[3] = {orig_dims[0] / dims[0], orig_dims[1] / dims[1], orig_dims[2] / dims[2]};
     int block_size = block_dims[0] * block_dims[1] * block_dims[2];
     size_t block_strides[3] = {block_dims[1] * block_dims[2], block_dims[2], 1};
-    assert(num_elements == block_size);
+    // assert(num_elements == block_size);
     // printf("Rank %d, num_elements: %ld\n", mpi_rank, num_elements);
 
     // get the global max and min to get the gloibal value range
@@ -70,21 +78,42 @@ int main(int argc, char** argv) {
     // barrier
     MPI_Barrier(cart_comm);
     double time = MPI_Wtime();  // Start the timer
-    MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
-    MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
-    MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
-    MPI_Bcast(&global_min, 1, MPI_FLOAT, 0, cart_comm);
+    if(1)
+    {
+        MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
+        MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
+        MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
+        MPI_Bcast(&global_min, 1, MPI_FLOAT, 0, cart_comm);
+    }
     double abs_eb = rel_eb * (global_max - global_min);
     double compensation_magnitude = abs_eb * 0.9;
     // printf("Rank %d, block_size: %d\n", mpi_rank, block_size);
     auto quantizer = SZ::LinearQuantizer<float>();
     quantizer.set_eb(abs_eb);
     std::vector<int> quant_inds(block_size, 0);
+    size_t local_zero_count = 0; 
     for (int i = 0; i < block_size; i++) {
-        quant_inds[i] = quantizer.quantize_and_overwrite(data[i], 0);
+        quant_inds[i] = quantizer.quantize_and_overwrite(data[i],0) -32768;
+        if(quant_inds[i] == 0) local_zero_count++;
     }
+    
     MPI_Barrier(cart_comm);
+
     time = MPI_Wtime() - time;
+    size_t global_zero_count = 0;
+    
+    MPI_Reduce(&local_zero_count, &global_zero_count, 1, mpi_get_type<size_t>(), MPI_SUM, 0, cart_comm);
+    if(mpi_rank == 0)
+    {
+        printf("quantization time = %f \n", time); 
+        printf("zero count = %ld \n", local_zero_count); 
+    }
+    double orig_psnr = -1; 
+    if(1) orig_psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
+    if (mpi_rank == 0) {
+        printf("Original PSNR: %f\n", orig_psnr);
+    }
+
 
     int w_block_dims[3] = {0, 0, 0};
     size_t w_block_size = 1;
@@ -103,10 +132,17 @@ int main(int argc, char** argv) {
     std::vector<int> w_quant_inds(w_block_size, 0);
 
     // quantization index exchange
-    data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims, w_block_strides,
+    MPI_Barrier(cart_comm);
+    time = MPI_Wtime(); 
+    if(1) data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims, w_block_strides,
                    coords, dims, cart_comm);
     // barrier
     MPI_Barrier(cart_comm);
+    time = MPI_Wtime() - time;
+    if(mpi_rank ==0)
+    {
+        printf("data exchange time = %f \n", time); 
+    }
     // boundary detection and sign map generation
     std::vector<char> boundary(block_size, 0);
     std::vector<char> sign_map(block_size, 0);
@@ -114,6 +150,12 @@ int main(int argc, char** argv) {
     if (1)
         get_boundary_and_sign_map3d<int, char>(w_quant_inds.data(), boundary.data(), sign_map.data(), w_block_dims,
                                                w_block_strides, block_dims, block_strides, coords, dims, cart_comm);
+
+    MPI_Barrier(cart_comm);
+    if(mpi_rank ==0)
+    {
+        printf("boundary and sign map done \n"); 
+    } 
 
     // edt to get the distance map and the indexes
 
@@ -125,10 +167,14 @@ int main(int argc, char** argv) {
     std::vector<float> distance(num_elements, 0.0);
 
     if (1) {
-        edt_3d_and_sign_map(boundary.data(), distance.data(), sign_map.data(), data_block_dims.data(), dims, coords,
+        edt_3d_and_sign_map(boundary.data(), distance.data(), index.data(), sign_map.data(), data_block_dims.data(), dims, coords,
                             mpi_rank, size, cart_comm);
         MPI_Barrier(cart_comm);
     }
+    if(mpi_rank ==0)
+    {
+        printf("first edt done  \n"); 
+    } 
 
     // complete the sign map for non-edge voxels
     // fill the compensation map for the edge voxels
@@ -137,13 +183,16 @@ int main(int argc, char** argv) {
     //     fill_sign_map3d<char, float>(sign_map.data(), index.data(), compensation_map.data(), boundary.data(), b_tag,
     //                                  block_size, compensation_magnitude);
     // }
-    MPI_Barrier(cart_comm);
     std::vector<char> w_sign_map(w_block_size, 0);
     if (1) {
         data_exhange3d(sign_map.data(), block_dims, block_strides, w_sign_map.data(), w_block_dims, w_block_strides,
                        coords, dims, cart_comm);
     }
     MPI_Barrier(cart_comm);
+    if(mpi_rank ==0)
+    {
+        printf("second data exchange done  \n"); 
+    } 
     // get the second boundary map
     std::vector<char> boundary_neutral(block_size, 0);
     if (1) {
@@ -153,44 +202,81 @@ int main(int argc, char** argv) {
     if (1) filter_neutral_boundary3d(boundary.data(), boundary_neutral.data(), b_tag, block_size);
 
     MPI_Barrier(cart_comm);
+
+    if(mpi_rank ==0)
+    {
+        printf("new boundary completed  \n"); 
+    }  
     std::vector<int> index_neutral(num_elements, 0);
     std::vector<float> distance_neutral(num_elements, 0.0);
     if (1) {
         edt_3d(boundary_neutral.data(), distance_neutral.data(), index_neutral.data(), data_block_dims.data(), dims,
                coords, mpi_rank, size, cart_comm);
+
+
+        // edt_3d_and_sign_map(boundary_neutral.data(), distance_neutral.data(), sign_map.data(), data_block_dims.data(),
+        //                     dims, coords, mpi_rank, size, cart_comm);
         MPI_Barrier(cart_comm);
     }
 
+    if(mpi_rank ==0)
+    {
+        printf("sedond edt done  \n"); 
+    } 
+
     // compensation
-    if (1)
+    if (0)
+    {
         compensation_idw(compensation_map.data(), data.get(), distance.data(), distance_neutral.data(), sign_map.data(),
                          block_size, compensation_magnitude);
+    }
+
+    if (1)
+    {
+        if(mpi_rank ==0)
+        {
+            printf("orig dims = %d %d %d \n", orig_dims[0], orig_dims[1], orig_dims[2]); 
+        }
+        compensation_rbf(compensation_map.data(), data.get(), distance.data(), index.data(), 
+                        distance_neutral.data(), index_neutral.data(), orig_dims,
+                        sign_map.data(),  block_size, compensation_magnitude);
+    }
+
     MPI_Barrier(cart_comm);
+    if(mpi_rank ==0)
+    {
+        printf("idw donw  \n"); 
+    } 
     // calculate the psnr
-    double psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
+    double psnr = -1; 
+    if(1) psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
     if (mpi_rank == 0) {
         printf("PSNR: %f\n", psnr);
     }
 
     // write the quantized data to a file
-    char out_filename[100];
-    sprintf(out_filename, "%s/vx_%d_%d_%d.quant.i32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
-    writefile<int>(out_filename, quant_inds.data(), block_size);
-    // printf("Rank %d, wrote quantized data to %s\n", mpi_rank, out_filename);
-    sprintf(out_filename, "%s/vx_%d_%d_%d.decomp.f32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
-    writefile<float>(out_filename, data.get(), block_size);
-    sprintf(out_filename, "%s/vx_%d_%d_%d.wquant.i32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
-    writefile<int>(out_filename, w_quant_inds.data(), w_block_size);
+    // char out_filename[100];
+    // sprintf(out_filename, "%s/vx_%d_%d_%d.quant.i32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    // writefile<int>(out_filename, quant_inds.data(), block_size);
+    // // printf("Rank %d, wrote quantized data to %s\n", mpi_rank, out_filename);
+    // sprintf(out_filename, "%s/vx_%d_%d_%d.decomp.f32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    // writefile<float>(out_filename, data.get(), block_size);
+    // sprintf(out_filename, "%s/vx_%d_%d_%d.wquant.i32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    // writefile<int>(out_filename, w_quant_inds.data(), w_block_size);
 
-    sprintf(out_filename, "%s/vx_%d_%d_%d.boundary.i8", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
-    writefile<char>(out_filename, boundary.data(), block_size);
+    // sprintf(out_filename, "%s/vx_%d_%d_%d.boundary.i8", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    // writefile<char>(out_filename, boundary.data(), block_size);
 
-    sprintf(out_filename, "%s/vx_%d_%d_%d.sign.i8", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
-    writefile<char>(out_filename, sign_map.data(), block_size);
+    // sprintf(out_filename, "%s/vx_%d_%d_%d.sign.i8", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    // writefile<char>(out_filename, sign_map.data(), block_size);
+
+    // char distance_filename[100];
+    // sprintf(distance_filename, "%s/distance_%d_%d_%d.f32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    // writefile<float>(distance_filename, distance.data(), num_elements);
 
     char distance_filename[100];
-    sprintf(distance_filename, "%s/distance_%d_%d_%d.f32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
-    writefile<float>(distance_filename, distance.data(), num_elements);
+    sprintf(distance_filename, "%s/vx_%d_%d_%d.d2.f32", dir_prefix.c_str(), coords[0], coords[1], coords[2]);
+    writefile<float>(distance_filename, distance_neutral.data(), num_elements);
 
     // printf("Rank %d, wrote decomp data to %s\n", mpi_rank, out_filename);
     if (mpi_rank == 0) {

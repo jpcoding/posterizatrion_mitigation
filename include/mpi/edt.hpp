@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include <algorithm>
 #include <cmath>
 #include <type_traits>
@@ -58,7 +57,7 @@ void calculate_distance(int *output, T *distance, uint width, uint height, uint 
 }
 
 template <typename T, typename T_index>
-void calculate_distance_and_index(int *output, T *distance, T_index* indexes, uint width, uint height, uint depth,
+void calculate_distance_and_index(int *output, T *distance, T_index* indexes, int width, int height, int depth,
                                   int global_width, int global_height, int global_depth, int *mpi_coords) {
     uint block_size = width * height * depth;
     int dim = 3;
@@ -225,8 +224,15 @@ void edt_core_mpi(int *d_output, size_t stride, uint rank, uint d, uint len, uin
             int receiver_id;
             MPI_Cart_rank(cart_comm, aux_coord, &receiver_id);
             MPI_Send(&l, 1, MPI_INT, receiver_id, 0, cart_comm);
-            MPI_Send(g, global_line_size, MPI_INT, receiver_id, 0, cart_comm);
-            MPI_Send(fptr, global_line_size * 3, MPI_INT, receiver_id, 0, cart_comm);  // send the whole array
+            MPI_Send(g, l+1, MPI_INT, receiver_id, 0, cart_comm);
+            for (int i = 0; i < l + 1; i++) {
+                for (int j = 0; j < 3; j++) {
+                    f_send_buffer[i * 3 + j] = f[g[i]][j];
+                }
+            }
+            MPI_Send(f_send_buffer.data(), 3 * (l + 1), MPI_INT, receiver_id, 0, cart_comm);  // adjust
+
+            // MPI_Send(fptr, global_line_size * 3, MPI_INT, receiver_id, 0, cart_comm);  // send the whole array
         }
     } else {
         // receive informaton from the last block
@@ -238,10 +244,17 @@ void edt_core_mpi(int *d_output, size_t stride, uint rank, uint d, uint len, uin
         int sender_id;
         MPI_Cart_rank(cart_comm, aux_coord, &sender_id);
         MPI_Recv(&l, 1, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
-        MPI_Recv(g, global_line_size, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
-        MPI_Recv(fptr, global_line_size * 3, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        // MPI_Recv(g, global_line_size, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        // MPI_Recv(fptr, global_line_size * 3, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
         // printf("Rank %d, sender_rank: %d,  status %d \n", cur_rank, sender_id,
         // MPI_status.MPI_ERROR);
+        MPI_Recv(g, l + 1, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        MPI_Recv(f_recv_buffer.data(), 3 * (l + 1), MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        for (int i = 0; i < l + 1; i++) {
+            for (int j = 0; j < 3; j++) {
+                f[g[i]][j] = f_recv_buffer[i * 3 + j];
+            }
+        }
     }
 
     maxl = l;
@@ -333,6 +346,7 @@ void edt_and_sign_core_mpi(int *d_output, char* sign_map, size_t stride, uint ra
         MPI_Recv(&l, 1, MPI_INT, sender_rank, 0, cart_comm, &MPI_status);
         // MPI_Recv(g, global_line_size, MPI_INT, sender_rank, 0, cart_comm, &MPI_status);
         // MPI_Recv(fptr, len * rank * (mpi_coords[d]), MPI_INT, sender_rank, 0, cart_comm, &MPI_status);
+        // MPI_Recv(local_sign_buffer, len * (mpi_coords[d]), MPI_CHAR, sender_rank, 0, cart_comm, &MPI_status);
         // printf("Rank %d received l from %d, l = %d, status =%d \n", mpi_rank,
         //    neighbor_up, l, MPI_status.MPI_ERROR);
         // wait for the top block to finish
@@ -397,6 +411,7 @@ void edt_and_sign_core_mpi(int *d_output, char* sign_map, size_t stride, uint ra
         MPI_Send(&l, 1, MPI_INT, receiver_rank, 0, cart_comm);
         // MPI_Send(g, global_line_size, MPI_INT, receiver_rank, 0, cart_comm);
         // MPI_Send(fptr, len * rank * (mpi_coords[d] + 1), MPI_INT, receiver_rank, 0, cart_comm);
+        // MPI_Send(local_sign_buffer, len * (mpi_coords[d] + 1), MPI_CHAR, receiver_rank, 0, cart_comm);
         if (1) {
             MPI_Send(g, l + 1, MPI_INT, receiver_rank, 0, cart_comm);  // limit the number of g indexes.
             for (int i = 0; i < l + 1; i++) {
@@ -430,9 +445,19 @@ void edt_and_sign_core_mpi(int *d_output, char* sign_map, size_t stride, uint ra
             int receiver_id;
             MPI_Cart_rank(cart_comm, aux_coord, &receiver_id);
             MPI_Send(&l, 1, MPI_INT, receiver_id, 0, cart_comm);
-            MPI_Send(g, global_line_size, MPI_INT, receiver_id, 0, cart_comm);
-            MPI_Send(fptr, global_line_size * 3, MPI_INT, receiver_id, 0, cart_comm);  // send the whole array
-            MPI_Send(local_sign_buffer, global_line_size, MPI_CHAR, receiver_id, 0, cart_comm);  // send the whole array 
+            // MPI_Send(g, global_line_size, MPI_INT, receiver_id, 0, cart_comm);
+            // MPI_Send(fptr, global_line_size * 3, MPI_INT, receiver_id, 0, cart_comm);  // send the whole array
+            // MPI_Send(local_sign_buffer, global_line_size, MPI_CHAR, receiver_id, 0, cart_comm);  // send the whole array 
+
+            MPI_Send(g, l + 1, MPI_INT, receiver_id, 0, cart_comm);  // limit the number of g indexes.
+            for (int i = 0; i < l + 1; i++) {
+                for (int j = 0; j < 3; j++) {
+                    f_send_buffer[i * 3 + j] = f[g[i]][j];
+                }
+                sign_send_buffer[i] = local_sign_buffer[g[i]];
+            }
+            MPI_Send(f_send_buffer.data(), 3 * (l + 1), MPI_INT, receiver_id, 0, cart_comm);  // adjust
+            MPI_Send(sign_send_buffer.data(), l + 1, MPI_CHAR, receiver_id, 0, cart_comm);  // adjust
         }
     } else {
         // receive informaton from the last block
@@ -444,12 +469,22 @@ void edt_and_sign_core_mpi(int *d_output, char* sign_map, size_t stride, uint ra
         int sender_id;
         MPI_Cart_rank(cart_comm, aux_coord, &sender_id);
         MPI_Recv(&l, 1, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
-        MPI_Recv(g, global_line_size, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
-        MPI_Recv(fptr, global_line_size * 3, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
-        MPI_Recv(local_sign_buffer, global_line_size, MPI_CHAR, sender_id, 0, cart_comm, &MPI_status);
+        // MPI_Recv(g, global_line_size, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        // MPI_Recv(fptr, global_line_size * 3, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        // MPI_Recv(local_sign_buffer, global_line_size, MPI_CHAR, sender_id, 0, cart_comm, &MPI_status);
+        MPI_Recv(g, l + 1, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        MPI_Recv(f_recv_buffer.data(), 3 * (l + 1), MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        MPI_Recv(sign_recv_buffer.data(), l + 1, MPI_CHAR, sender_id, 0, cart_comm, &MPI_status);
+        for (int i = 0; i < l + 1; i++) {
+            for (int j = 0; j < 3; j++) {
+                f[g[i]][j] = f_recv_buffer[i * 3 + j];
+            }
+            local_sign_buffer[g[i]] = sign_recv_buffer[i];
+        }
         // printf("Rank %d, sender_rank: %d,  status %d \n", cur_rank, sender_id,
         // MPI_status.MPI_ERROR);
     }
+    
 
     maxl = l;
 
@@ -502,6 +537,8 @@ void edt_3d(T_boundary *boundary, T_distance *distance, T_index* index, int *dat
     }
     int input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
     int output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
+
+    int  global_dims[3] = {data_block_dims[0] * mpi_dims[0], data_block_dims[1] * mpi_dims[1], data_block_dims[2] * mpi_dims[2]};
 
     int direction;
     // dim 0
@@ -578,9 +615,10 @@ void edt_3d(T_boundary *boundary, T_distance *distance, T_index* index, int *dat
     }
 
     // calculate distance
-    calculate_distance(output, distance, data_block_dims[2], data_block_dims[1], data_block_dims[0], mpi_coords);
-    // calculate_distance_and_index(output, distance, index, data_block_dims[2], data_block_dims[1], data_block_dims[0],
-    //                              mpi_coords);
+    // calculate_distance(output, distance, data_block_dims[2], data_block_dims[1], data_block_dims[0], mpi_coords);
+    calculate_distance_and_index(output, distance, index, data_block_dims[2], 
+                    data_block_dims[1], data_block_dims[0],
+                    global_dims[2],global_dims[1], global_dims[0],mpi_coords);
 
     free(g);
     free(f);
@@ -588,8 +626,8 @@ void edt_3d(T_boundary *boundary, T_distance *distance, T_index* index, int *dat
 }
 
 
-template <typename T_boundary, typename T_distance>
-void edt_3d_and_sign_map(T_boundary *boundary, T_distance *distance,char* sign_map, int *data_block_dims, 
+template <typename T_boundary, typename T_distance, typename T_index>
+void edt_3d_and_sign_map(T_boundary *boundary, T_distance *distance, T_index* indexes, char* sign_map, int *data_block_dims, 
             int *mpi_dims,int *mpi_coords, int mpi_rank, int size, MPI_Comm cart_comm) {
     std::vector<int> output_data =
         std::vector<int>(data_block_dims[0] * data_block_dims[1] * data_block_dims[2] * 3, 0);
@@ -601,6 +639,8 @@ void edt_3d_and_sign_map(T_boundary *boundary, T_distance *distance,char* sign_m
     //     data_block_dims[1], data_block_dims[0], mpi_coords);
     int max_dim = *std::max_element(data_block_dims, data_block_dims + 3);
     int max_mpi_dim = *std::max_element(mpi_dims, mpi_dims + 3);
+
+    int  global_dims[3] = {data_block_dims[0] * mpi_dims[0], data_block_dims[1] * mpi_dims[1], data_block_dims[2] * mpi_dims[2]};
     int *g = (int *)malloc(sizeof(int) * max_dim * max_mpi_dim);
     char* sign_buffer = (char*)malloc(sizeof(char) * max_dim * max_mpi_dim); 
     int *f = (int *)malloc(sizeof(int) * max_dim * 3 * max_mpi_dim);
@@ -686,9 +726,11 @@ void edt_3d_and_sign_map(T_boundary *boundary, T_distance *distance,char* sign_m
     }
 
     // calculate distance
-    calculate_distance(output, distance, data_block_dims[2], data_block_dims[1], data_block_dims[0], mpi_coords);
-    // calculate_distance_and_index(output, distance, index, data_block_dims[2], data_block_dims[1], data_block_dims[0],
-    //                              mpi_coords);
+    // calculate_distance(output, distance, data_block_dims[2], data_block_dims[1], data_block_dims[0], mpi_coords);
+    calculate_distance_and_index(output, distance, indexes, 
+        data_block_dims[2], data_block_dims[1], data_block_dims[0],
+        global_dims[2],global_dims[1], global_dims[0],
+                                 mpi_coords);
 
     // std::string dir_prefix = "/scratch/pji228/useful/direct_quantize/mpi/blocks/";
     // char distance_filename[100];
