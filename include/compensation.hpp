@@ -698,7 +698,7 @@ class Compensation {
                 // double magnitude = (1 - relative_r) * (1 - relative_r);
                 // // double magnitude = std::pow(1 - relative_r, 1.5);
                 double magnitude = (1/distance1) / (1/distance1 + 1/distance2); 
-                // compensation_map[i] = sign * magnitude * comepnsation_value;  
+                compensation_map[i] = sign * magnitude * comepnsation_value;  
 
 
                 // local rbf 
@@ -706,12 +706,12 @@ class Compensation {
 
                 // // calculate the compensation value
                 // double compensation_value = 0;
-                double d0 = cal_distance( indexes[i], indexes2[i]);
-                double a = rbf(0.5);
-                double b = rbf(d0);
-                double w0 = a / (a*a - b*b)*sign;
-                double w1 = b / (-a*a + b*b)*sign;   
-                compensation_map[i]  = (w0 * rbf(distance1) + w1 * rbf(distance2)) * comepnsation_value;
+                // double d0 = cal_distance( indexes[i], indexes2[i]);
+                // double a = rbf(0.5);
+                // double b = rbf(d0);
+                // double w0 = a / (a*a - b*b)*sign;
+                // double w1 = b / (-a*a + b*b)*sign;   
+                // compensation_map[i]  = (w0 * rbf(distance1) + w1 * rbf(distance2)) * comepnsation_value;
                 // // int ii = i / (dims[1]*dims[2]);
                 // int jj = (i / dims[2]) % dims[1];
                 // int kk = i % dims[2];

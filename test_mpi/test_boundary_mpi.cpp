@@ -12,9 +12,9 @@
 #include "mpi/compensation.hpp"
 #include "mpi/data_exchange.hpp"
 #include "mpi/edt.hpp"
+#include "mpi/mpi_datatype.hpp"
 #include "mpi/stats.hpp"
 #include "utils/file_utils.hpp"
-#include "mpi/mpi_datatype.hpp" 
 
 namespace SZ = SZ3;
 
@@ -25,15 +25,14 @@ int main(int argc, char** argv) {
     dims[0] = atoi(argv[1]);
     dims[1] = atoi(argv[2]);
     dims[2] = atoi(argv[3]);
-    double rel_eb = atof(argv[4]);     // Relative error bound
-    std::string dir_prefix = argv[5];  // Directory prefix for the blocks
-    std::string name_prefix = argv[6];  // Name prefix for the blocks 
+    double rel_eb = atof(argv[4]);      // Relative error bound
+    std::string dir_prefix = argv[5];   // Directory prefix for the blocks
+    std::string name_prefix = argv[6];  // Name prefix for the blocks
 
     int orig_dims[3] = {256, 384, 384};
     orig_dims[0] = atoi(argv[7]);
     orig_dims[1] = atoi(argv[8]);
     orig_dims[2] = atoi(argv[9]);
-    
 
     int periods[3] = {0, 0, 0};  // No periodicity in any dimension
     int coords[3] = {0, 0, 0};   // Coords of this process in the grid
@@ -75,11 +74,16 @@ int main(int argc, char** argv) {
     float local_max = *std::max_element(data.get(), data.get() + num_elements);
     float local_min = *std::min_element(data.get(), data.get() + num_elements);
     float global_max, global_min;
+
+    bool operation = true;
+    double local_range = local_max - local_min;
+    if (local_range < 1e-10) {
+        operation = false;
+    }
     // barrier
     MPI_Barrier(cart_comm);
     double time = MPI_Wtime();  // Start the timer
-    if(1)
-    {
+    if (1) {
         MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
         MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
         MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
@@ -91,29 +95,32 @@ int main(int argc, char** argv) {
     auto quantizer = SZ::LinearQuantizer<float>();
     quantizer.set_eb(abs_eb);
     std::vector<int> quant_inds(block_size, 0);
-    size_t local_zero_count = 0; 
-    for (int i = 0; i < block_size; i++) {
-        quant_inds[i] = quantizer.quantize_and_overwrite(data[i],0) -32768;
-        if(quant_inds[i] == 0) local_zero_count++;
+    size_t local_zero_count = 0;
+    if (1) {
+        for (int i = 0; i < block_size; i++) {
+            quant_inds[i] = quantizer.quantize_and_overwrite(data[i], 0) - 32768;
+            if (quant_inds[i] == 0) local_zero_count++;
+        }
     }
-    
+
     MPI_Barrier(cart_comm);
 
     time = MPI_Wtime() - time;
     size_t global_zero_count = 0;
-    
+
     MPI_Reduce(&local_zero_count, &global_zero_count, 1, mpi_get_type<size_t>(), MPI_SUM, 0, cart_comm);
-    if(mpi_rank == 0)
-    {
-        printf("quantization time = %f \n", time); 
-        printf("zero count = %ld \n", local_zero_count); 
+    if (mpi_rank == 0) {
+        printf("quantization time = %f \n", time);
+        printf("zero count = %ld \n", local_zero_count);
+        double global_size = static_cast<double>(orig_dims[0] * orig_dims[1] * orig_dims[2]) ; 
+        printf("global size = %f \n", global_size);
+        printf("global zero ratio = %f \n", static_cast<double>(global_zero_count) / global_size); 
     }
-    double orig_psnr = -1; 
-    if(1) orig_psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
+    double orig_psnr = -1;
+    if (1) orig_psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
     if (mpi_rank == 0) {
         printf("Original PSNR: %f\n", orig_psnr);
     }
-
 
     int w_block_dims[3] = {0, 0, 0};
     size_t w_block_size = 1;
@@ -133,29 +140,28 @@ int main(int argc, char** argv) {
 
     // quantization index exchange
     MPI_Barrier(cart_comm);
-    time = MPI_Wtime(); 
-    if(1) data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims, w_block_strides,
-                   coords, dims, cart_comm);
+    time = MPI_Wtime();
+    if (1)
+        data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims, w_block_strides,
+                       coords, dims, cart_comm);
     // barrier
     MPI_Barrier(cart_comm);
     time = MPI_Wtime() - time;
-    if(mpi_rank ==0)
-    {
-        printf("data exchange time = %f \n", time); 
+    if (mpi_rank == 0) {
+        printf("data exchange time = %f \n", time);
     }
     // boundary detection and sign map generation
     std::vector<char> boundary(block_size, 0);
     std::vector<char> sign_map(block_size, 0);
     std::vector<float> compensation_map(block_size, 0.0);
-    if (1)
+    if (operation)
         get_boundary_and_sign_map3d<int, char>(w_quant_inds.data(), boundary.data(), sign_map.data(), w_block_dims,
                                                w_block_strides, block_dims, block_strides, coords, dims, cart_comm);
 
     MPI_Barrier(cart_comm);
-    if(mpi_rank ==0)
-    {
-        printf("boundary and sign map done \n"); 
-    } 
+    if (mpi_rank == 0) {
+        printf("boundary and sign map done \n");
+    }
 
     // edt to get the distance map and the indexes
 
@@ -167,14 +173,13 @@ int main(int argc, char** argv) {
     std::vector<float> distance(num_elements, 0.0);
 
     if (1) {
-        edt_3d_and_sign_map(boundary.data(), distance.data(), index.data(), sign_map.data(), data_block_dims.data(), dims, coords,
-                            mpi_rank, size, cart_comm);
+        edt_3d_and_sign_map(boundary.data(), distance.data(), index.data(), sign_map.data(), data_block_dims.data(),
+                            dims, coords, mpi_rank, size, cart_comm);
         MPI_Barrier(cart_comm);
     }
-    if(mpi_rank ==0)
-    {
-        printf("first edt done  \n"); 
-    } 
+    if (mpi_rank == 0) {
+        printf("first edt done  \n");
+    }
 
     // complete the sign map for non-edge voxels
     // fill the compensation map for the edge voxels
@@ -189,67 +194,59 @@ int main(int argc, char** argv) {
                        coords, dims, cart_comm);
     }
     MPI_Barrier(cart_comm);
-    if(mpi_rank ==0)
-    {
-        printf("second data exchange done  \n"); 
-    } 
+    if (mpi_rank == 0) {
+        printf("second data exchange done  \n");
+    }
     // get the second boundary map
     std::vector<char> boundary_neutral(block_size, 0);
-    if (1) {
+    if (operation) {
         get_boundary3d<char, char>(w_sign_map.data(), boundary_neutral.data(), w_block_dims, w_block_strides,
                                    block_dims, block_strides, coords, dims, cart_comm);
     }
-    if (1) filter_neutral_boundary3d(boundary.data(), boundary_neutral.data(), b_tag, block_size);
+    if (operation) filter_neutral_boundary3d(boundary.data(), boundary_neutral.data(), b_tag, block_size);
 
     MPI_Barrier(cart_comm);
 
-    if(mpi_rank ==0)
-    {
-        printf("new boundary completed  \n"); 
-    }  
+    if (mpi_rank == 0) {
+        printf("new boundary completed  \n");
+    }
     std::vector<int> index_neutral(num_elements, 0);
     std::vector<float> distance_neutral(num_elements, 0.0);
     if (1) {
         edt_3d(boundary_neutral.data(), distance_neutral.data(), index_neutral.data(), data_block_dims.data(), dims,
                coords, mpi_rank, size, cart_comm);
 
-
-        // edt_3d_and_sign_map(boundary_neutral.data(), distance_neutral.data(), sign_map.data(), data_block_dims.data(),
+        // edt_3d_and_sign_map(boundary_neutral.data(), distance_neutral.data(), sign_map.data(),
+        // data_block_dims.data(),
         //                     dims, coords, mpi_rank, size, cart_comm);
         MPI_Barrier(cart_comm);
     }
 
-    if(mpi_rank ==0)
-    {
-        printf("sedond edt done  \n"); 
-    } 
+    if (mpi_rank == 0) {
+        printf("sedond edt done  \n");
+    }
 
     // compensation
-    if (0)
-    {
+    if (operation && 1 ) {
         compensation_idw(compensation_map.data(), data.get(), distance.data(), distance_neutral.data(), sign_map.data(),
                          block_size, compensation_magnitude);
     }
 
-    if (1)
-    {
-        if(mpi_rank ==0)
-        {
-            printf("orig dims = %d %d %d \n", orig_dims[0], orig_dims[1], orig_dims[2]); 
+    if (operation && 0) {
+        if (mpi_rank == 0) {
+            printf("orig dims = %d %d %d \n", orig_dims[0], orig_dims[1], orig_dims[2]);
         }
-        compensation_rbf(compensation_map.data(), data.get(), distance.data(), index.data(), 
-                        distance_neutral.data(), index_neutral.data(), orig_dims,
-                        sign_map.data(),  block_size, compensation_magnitude);
+        compensation_rbf(compensation_map.data(), data.get(), distance.data(), index.data(), distance_neutral.data(),
+                         index_neutral.data(), orig_dims, sign_map.data(), block_size, compensation_magnitude);
     }
 
     MPI_Barrier(cart_comm);
-    if(mpi_rank ==0)
-    {
-        printf("idw donw  \n"); 
-    } 
+    if (mpi_rank == 0) {
+        printf("idw donw  \n");
+    }
     // calculate the psnr
-    double psnr = -1; 
-    if(1) psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
+    double psnr = -1;
+    if (1) psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
     if (mpi_rank == 0) {
         printf("PSNR: %f\n", psnr);
     }

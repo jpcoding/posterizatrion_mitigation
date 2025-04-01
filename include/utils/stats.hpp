@@ -66,7 +66,7 @@ void verify(Type *ori_data, Type *data, size_t num_elements, double &psnr, doubl
     printf("normError = %f, normErr_norm = %f\n", normErr, normErr_norm);
     printf("acEff=%f\n", acEff);
     printf("SSE=%f\n", sse);
-    printf("MSE=%f\n", mse);
+    printf("MSE=%.10f\n", mse);
     //        printf("errAutoCorr=%.10f\n", autocorrelation1DLag1<double>(diff, num_elements, diff_sum / num_elements));
     free(diff);
 }

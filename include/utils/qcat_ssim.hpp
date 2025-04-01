@@ -301,6 +301,7 @@ namespace PM
                 }
             }
         }
+        // std::cout << "nw = " << nw << std::endl; 
         return ssimSum / nw;
     }
 

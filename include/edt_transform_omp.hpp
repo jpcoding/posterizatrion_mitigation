@@ -618,9 +618,6 @@ private:
     Timer global_timer; 
     char edge_tag = 1; 
 
-
-
-
 };
 } // namespace PM2
 

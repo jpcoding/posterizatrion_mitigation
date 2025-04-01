@@ -11,5 +11,5 @@ target_link_libraries(test_edt_mpi_function PRIVATE MPI::MPI_CXX)
 add_executable(test_ssim_mpi test_ssim_mpi.cpp)
 target_link_libraries(test_ssim_mpi PRIVATE MPI::MPI_CXX)
 
-add_executable(test_ssim_segmentation test_ssim_segmentation.cpp)
-target_link_libraries(test_ssim_segmentation PRIVATE MPI::MPI_CXX)
+add_executable(test_ssim_mpi_merged_file test_ssim_mpi_merged_file.cpp)
+target_link_libraries(test_ssim_mpi_merged_file PRIVATE MPI::MPI_CXX)

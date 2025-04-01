@@ -36,26 +36,16 @@ void data_exhange3d(T* src, int* src_dims, size_t* src_strides, T* dest, int* de
             }
         }
     }
-    // printf("end copy to workspace \n");
-    // if(mpi_rank == 1 )
-    // {
-    //     printf("dims = %d %d %d \n",src_dims[0],src_dims[1],src_dims[2] );
-    //     printf("dims = %d %d %d \n",dest_dims[1],dest_dims[1],dest_dims[2] );
-    // }
     if (1) {
-        // pass data to the neighboring blocks
-        // usually a block has 8 neighbors
         // 1. deal with the 6 faces
         for (int i = 0; i < 3; i++) {
             int face_idx1 = (i + 1) % 3;
             int face_idx2 = (i + 2) % 3;
             int send_buffer_size = src_dims[face_idx1] * src_dims[face_idx2];
-            // if(mpi_rank==0) printf("start allocation \n");
             std::vector<T> send_buffer_vector = std::vector<T>(send_buffer_size, 0);  // send buffer
             std::vector<T> recv_buffer_vector = std::vector<T>(send_buffer_size, 0);  // receive buffer
             T* send_buffer = send_buffer_vector.data();
             T* recv_buffer = recv_buffer_vector.data();
-            // if(mpi_rank==0) printf("end allocation \n");
             int recv_coords[3] = {mpi_coords[0], mpi_coords[1], mpi_coords[2]};
             int receiver_rank;
             int sender_rank;
