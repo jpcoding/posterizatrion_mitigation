@@ -13,14 +13,13 @@
 #include "SZ3/utils/FileUtil.hpp"
 #include "compensation.hpp"
 #include "utils/qcat_ssim.hpp"
-#include "utils/timer.hpp"
 #include "utils/stats.hpp"
+#include "utils/timer.hpp"
 
 using Real = float;
 namespace SZ = SZ3;
 
 namespace fs = std::filesystem;
-
 
 int main(int argc, char **argv) {
     CLI::App app{"OMP version of compensation using EDT method"};
@@ -33,6 +32,7 @@ int main(int argc, char **argv) {
     double eb = 0.0;
     std::string quantized_file;
     std::string compensation_file;
+    bool use_rbf;
     app.add_option("-N", N, "number of dimensions")->required();
     dims.resize(N, 0);
     app.add_option("-d", dims, "dimensions")->required();
@@ -42,6 +42,7 @@ int main(int argc, char **argv) {
     app.add_option("-q", quantized_file, "quantized file")->required();
     app.add_option("-c", compensation_file, "compensation file")->required();
     app.add_option("-t", num_threads, "number of threads")->default_val(1)->check(CLI::Range(1, 124));
+    app.add_option("--use_rbf", use_rbf, "use rbf")->default_val(false);
 
     CLI11_PARSE(app, argc, argv);
 
@@ -84,10 +85,9 @@ int main(int argc, char **argv) {
         }
     }
 
-    int max_quant = *std::max_element(quant_inds.begin(), quant_inds.end()); 
-    int min_quant = *std::min_element(quant_inds.begin(), quant_inds.end()); 
-    if(max_quant == min_quant)
-    {
+    int max_quant = *std::max_element(quant_inds.begin(), quant_inds.end());
+    int min_quant = *std::min_element(quant_inds.begin(), quant_inds.end());
+    if (max_quant == min_quant) {
         printf("max quant = min quant = %d \n", max_quant);
         operation = false;
     }
@@ -135,6 +135,7 @@ int main(int argc, char **argv) {
         auto compensator = PM::Compensation<Real, int>(N, dims.data(), dec_data.data(), quant_inds.data(),
                                                        max_diff * compensation_factor);
         compensator.set_edt_thread_num(num_threads);
+        compensator.set_use_rbf(use_rbf);
 
         auto compensation_map = compensator.get_compensation_map();
 

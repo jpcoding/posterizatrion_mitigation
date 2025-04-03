@@ -1,23 +1,10 @@
 #include <mpi.h>
 #include <stdio.h>
-
-#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
 #include <string>
 #include <vector>
-
-#include "SZ3/quantizer/IntegerQuantizer.hpp"
-#include "mpi/boundary.hpp"
-#include "mpi/compensation.hpp"
-#include "mpi/data_exchange.hpp"
-#include "mpi/edt.hpp"
-#include "mpi/mpi_datatype.hpp"
-#include "mpi/stats.hpp"
-#include "utils/file_utils.hpp"
 #include "utils/qcat_ssim.hpp"
-
-namespace SZ = SZ3;
 
 int main(int argc, char** argv) {
     int mpi_rank, size;

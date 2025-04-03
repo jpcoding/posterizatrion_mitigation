@@ -26,24 +26,24 @@ std::vector<char> get_boundary_2d(T* quant_index, int N, int* dims) {
         }
     }
     // filter boundary
-    for (size_t i = 1; i < dims[0] - 1; i++) {
-        for (size_t j = 1; j < dims[1] - 1; j++) {
-            size_t idx = i * stride[0] + j * stride[1];
-            if (quant_index[idx] != 0) {
-                int left = quant_index[idx - stride[0]];
-                int right = quant_index[idx + stride[0]];
-                int up = quant_index[idx - stride[1]];
-                int down = quant_index[idx + stride[1]];
-                if (left == 0 && right == 0 && up == 0 && down == 0) {
-                    boundary[idx] = 0;
-                    boundary[idx - stride[0]] = 0;
-                    boundary[idx + stride[0]] = 0;
-                    boundary[idx - stride[1]] = 0;
-                    boundary[idx + stride[1]] = 0;
-                }
-            }
-        }
-    }
+    // for (size_t i = 1; i < dims[0] - 1; i++) {
+    //     for (size_t j = 1; j < dims[1] - 1; j++) {
+    //         size_t idx = i * stride[0] + j * stride[1];
+    //         if (quant_index[idx] != 0) {
+    //             int left = quant_index[idx - stride[0]];
+    //             int right = quant_index[idx + stride[0]];
+    //             int up = quant_index[idx - stride[1]];
+    //             int down = quant_index[idx + stride[1]];
+    //             if (left == 0 && right == 0 && up == 0 && down == 0) {
+    //                 boundary[idx] = 0;
+    //                 boundary[idx - stride[0]] = 0;
+    //                 boundary[idx + stride[0]] = 0;
+    //                 boundary[idx - stride[1]] = 0;
+    //                 boundary[idx + stride[1]] = 0;
+    //             }
+    //         }
+    //     }
+    // }
     return boundary;
 }
 
@@ -123,6 +123,45 @@ std::vector<char> get_boundary(T* quant_index, int N, int* dims) {
     }
 }
 
+inline std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_2d(int* quant_index, int N, int* dims)
+{
+    std::vector<char> boundary;
+    std::vector<char> sign_map;
+    size_t stride[2];
+    stride[0] = dims[1];
+    stride[1] = 1;
+    size_t n = dims[0] * dims[1];
+    boundary.resize(n, 0);
+    sign_map.resize(n, 0);
+
+    for (size_t i = 1; i < dims[0] - 1; i++) {
+        for (size_t j = 1; j < dims[1] - 1; j++) {
+            size_t idx = i * stride[0] + j * stride[1];
+
+            int left = quant_index[idx - stride[0]];
+            int right = quant_index[idx + stride[0]];
+            int up = quant_index[idx - stride[1]];
+            int down = quant_index[idx + stride[1]];
+
+            if(left != quant_index[idx] || right != quant_index[idx] || up != quant_index[idx] || down != quant_index[idx]) {
+                boundary[idx] = 1;
+                char sign = 0; 
+                if (left != quant_index[idx]) {
+                    sign = get_sign( left -quant_index[idx]); 
+                } else if (right != quant_index[idx]) {
+                    sign = get_sign( right -quant_index[idx]); 
+                } else if (up != quant_index[idx]) {
+                    sign = get_sign( up -quant_index[idx]); 
+                } else if (down != quant_index[idx]) {
+                    sign = get_sign( down -quant_index[idx]); 
+                }
+                sign_map[idx] = sign;
+            }
+        }
+    }
+    return {std::move(boundary), std::move(sign_map)};
+}
+
 std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_3d(int* quant_index, int N, int* dims) {
     // define stride
     size_t stride[3];
@@ -156,14 +195,6 @@ std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_3d(in
                 neighbor_quant[3] = back;
                 neighbor_quant[4] = left;
                 neighbor_quant[5] = right;
-                // neighbor_quant[0] = up;
-                // neighbor_quant[1] = down;
-                // neighbor_quant[2] = left;
-                // neighbor_quant[3] = right;
-                // neighbor_quant[4] = front;
-                // neighbor_quant[5] = back;
-
-
 
                 if(left != quant_index[idx] || right != quant_index[idx] || up != quant_index[idx] || down != quant_index[idx] || front != quant_index[idx] || back != quant_index[idx]) {
                     boundary[idx] = 1;
@@ -189,41 +220,12 @@ std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_3d(in
             }
         }
     }
-    // filter boundary
-    // for (size_t i = 1; i < dims[0] - 1; i++) {
-    //     for (size_t j = 1; j < dims[1] - 1; j++) {
-    //         for (size_t k = 1; k < dims[2] - 1; k++) {
-    //             size_t idx = i * stride[0] + j * stride[1] + k * stride[2];
-    //             if (quant_index[idx] != 0) {
-    //                 int left = quant_index[idx - stride[0]];
-    //                 int right = quant_index[idx + stride[0]];
-    //                 int up = quant_index[idx - stride[1]];
-    //                 int down = quant_index[idx + stride[1]];
-    //                 int front = quant_index[idx - stride[2]];
-    //                 int back = quant_index[idx + stride[2]];
-    //                 if (left == 0 && right == 0 && up == 0 && down == 0 && front == 0 && back == 0) {
-    //                     boundary[idx] = 0;
-    //                     boundary[idx - stride[0]] = 0;
-    //                     boundary[idx + stride[0]] = 0;
-    //                     boundary[idx - stride[1]] = 0;
-    //                     boundary[idx + stride[1]] = 0;
-    //                     boundary[idx - stride[2]] = 0;
-    //                     boundary[idx + stride[2]] = 0;
-    //                     sign_map[idx] = 0;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-    // auto result = make_tuple(boundary, sign_map);
     return {std::move(boundary), std::move(sign_map)};
 }
 
 std::tuple<std::vector<char>, std::vector<char>>  get_boundary_and_sign_map(int* quant_index, int N, int* dims) {
     if (N == 2) {
-        std::vector<char> boundary(dims[0] * dims[1], 0);
-        std::vector<char> sign_map(dims[0] * dims[1], 0);
-        return {std::move(boundary), std::move(sign_map)};
+        return get_boundary_and_sign_map_2d(quant_index, N, dims);
     } else if (N == 3) {
         return get_boundary_and_sign_map_3d(quant_index, N, dims);
     } else {
