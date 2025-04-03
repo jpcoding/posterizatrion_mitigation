@@ -354,14 +354,14 @@ void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, uint ra
 
         if (1) {
             MPI_Recv(g, l + 1, MPI_INT, sender_rank, 0, cart_comm, &MPI_status);
-            MPI_Recv(f_recv_buffer.data(), 3 * (l + 1), MPI_INT, sender_rank, 0, cart_comm, &MPI_status);
-            MPI_Recv(sign_recv_buffer.data(), l + 1, MPI_CHAR, sender_rank, 0, cart_comm, &MPI_status);
-            for (int i = 0; i < l + 1; i++) {
-                for (int j = 0; j < 3; j++) {
-                    f[g[i]][j] = f_recv_buffer[i * 3 + j];
-                }
-                local_sign_buffer[g[i]] = sign_recv_buffer[i];
-            }
+            MPI_Recv(f_send_buffer.data(), 3 * (l + 1), MPI_INT, sender_rank, 0, cart_comm, &MPI_status);
+            MPI_Recv(sign_send_buffer.data(), l + 1, MPI_CHAR, sender_rank, 0, cart_comm, &MPI_status);
+            // for (int i = 0; i < l + 1; i++) {
+            //     for (int j = 0; j < 3; j++) {
+            //         f[g[i]][j] = f_send_buffer[i * 3 + j];
+            //     }
+            //     local_sign_buffer[g[i]] = sign_send_buffer[i];
+            // }
         }
     }
 
@@ -377,17 +377,25 @@ void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, uint ra
             }
             while (l >= 1) {
                 int a, b, c, uR = 0.0, vR = 0.0, f1;
-                idx1 = g[l];
-                idx2 = g[l - 1];
-                f1 = f[idx1][d];
-                a = f1 - f[idx2][d];
+                // idx1 = g[l];
+                // idx2 = g[l - 1];
+                // f1 = f[idx1][d];
+                // a = f1 - f[idx2][d];
+                // b = fd - f1;
+                // c = a + b;
+                idx1 = l;
+                idx2 = l - 1;
+                f1 = f_send_buffer[idx1*3+d];
+                a = f1 -f_send_buffer[idx2*3+d];
                 b = fd - f1;
                 c = a + b;
                 for (jj = 0; jj < rank; jj++) {
                     if (jj != d) {
                         int cc = coor[jj];
-                        int tu = f[idx2][jj] - cc;
-                        int tv = f[idx1][jj] - cc;
+                        // int tu = f[idx2][jj] - cc;
+                        // int tv = f[idx1][jj] - cc;
+                        int tu = f_send_buffer[idx2*3+jj] - cc;
+                        int tv = f_send_buffer[idx1*3+jj] - cc;
                         uR += tu * tu;
                         vR += tv * tv;
                     }
@@ -399,6 +407,10 @@ void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, uint ra
             }
             ++l;
             g[l] = ii;
+            for (int jj = 0; jj < 3; jj++) {
+                f_send_buffer[l * 3 + jj] = f[ii][jj];
+            }
+            sign_send_buffer[l] = local_sign_buffer[ii];
         }
     }
 
@@ -415,12 +427,12 @@ void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, uint ra
         // MPI_Send(local_sign_buffer, len * (mpi_coords[d] + 1), MPI_CHAR, receiver_rank, 0, cart_comm);
         if (1) {
             MPI_Send(g, l + 1, MPI_INT, receiver_rank, 0, cart_comm);  // limit the number of g indexes.
-            for (int i = 0; i < l + 1; i++) {
-                for (int j = 0; j < 3; j++) {
-                    f_send_buffer[i * 3 + j] = f[g[i]][j];
-                }
-                sign_send_buffer[i] = local_sign_buffer[g[i]];
-            }
+            // for (int i = 0; i < l + 1; i++) {
+            //     for (int j = 0; j < 3; j++) {
+            //         f_send_buffer[i * 3 + j] = f[g[i]][j];
+            //     }
+            //     sign_send_buffer[i] = local_sign_buffer[g[i]];
+            // }
             MPI_Send(f_send_buffer.data(), 3 * (l + 1), MPI_INT, receiver_rank, 0, cart_comm);  // adjust
             MPI_Send(sign_send_buffer.data(), l + 1, MPI_CHAR, receiver_rank, 0, cart_comm);    // adjust
         }
@@ -451,12 +463,12 @@ void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, uint ra
             // array
 
             MPI_Send(g, l + 1, MPI_INT, receiver_id, 0, cart_comm);  // limit the number of g indexes.
-            for (int i = 0; i < l + 1; i++) {
-                for (int j = 0; j < 3; j++) {
-                    f_send_buffer[i * 3 + j] = f[g[i]][j];
-                }
-                sign_send_buffer[i] = local_sign_buffer[g[i]];
-            }
+            // for (int i = 0; i < l + 1; i++) {
+            //     for (int j = 0; j < 3; j++) {
+            //         f_send_buffer[i * 3 + j] = f[g[i]][j];
+            //     }
+            //     sign_send_buffer[i] = local_sign_buffer[g[i]];
+            // }
             MPI_Send(f_send_buffer.data(), 3 * (l + 1), MPI_INT, receiver_id, 0, cart_comm);  // adjust
             MPI_Send(sign_send_buffer.data(), l + 1, MPI_CHAR, receiver_id, 0, cart_comm);    // adjust
         }
@@ -474,14 +486,14 @@ void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, uint ra
         // MPI_Recv(fptr, global_line_size * 3, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
         // MPI_Recv(local_sign_buffer, global_line_size, MPI_CHAR, sender_id, 0, cart_comm, &MPI_status);
         MPI_Recv(g, l + 1, MPI_INT, sender_id, 0, cart_comm, &MPI_status);
-        MPI_Recv(f_recv_buffer.data(), 3 * (l + 1), MPI_INT, sender_id, 0, cart_comm, &MPI_status);
-        MPI_Recv(sign_recv_buffer.data(), l + 1, MPI_CHAR, sender_id, 0, cart_comm, &MPI_status);
-        for (int i = 0; i < l + 1; i++) {
-            for (int j = 0; j < 3; j++) {
-                f[g[i]][j] = f_recv_buffer[i * 3 + j];
-            }
-            local_sign_buffer[g[i]] = sign_recv_buffer[i];
-        }
+        MPI_Recv(f_send_buffer.data(), 3 * (l + 1), MPI_INT, sender_id, 0, cart_comm, &MPI_status);
+        MPI_Recv(sign_send_buffer.data(), l + 1, MPI_CHAR, sender_id, 0, cart_comm, &MPI_status);
+        // for (int i = 0; i < l + 1; i++) {
+        //     for (int j = 0; j < 3; j++) {
+        //         f[g[i]][j] = f_send_buffer[i * 3 + j];
+        //     }
+        //     local_sign_buffer[g[i]] = sign_send_buffer[i];
+        // }
         // printf("Rank %d, sender_rank: %d,  status %d \n", cur_rank, sender_id,
         // MPI_status.MPI_ERROR);
     }
@@ -494,24 +506,28 @@ void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, uint ra
         for (ii = chunck_start; ii < len + chunck_start; ii++) {
             int delta1 = 0.0, t;
             for (jj = 0; jj < rank; jj++) {
-                t = jj == d ? f[g[l]][jj] - ii : f[g[l]][jj] - coor[jj];
+                // t = jj == d ? f[g[l]][jj] - ii : f[g[l]][jj] - coor[jj];
+                t = jj == d ? f_send_buffer[l*3+jj] - ii : f_send_buffer[l*3+jj] - coor[jj];
                 delta1 += t * t;
             }
             while (l < maxl) {
                 int delta2 = 0.0;
                 for (jj = 0; jj < rank; jj++) {
-                    t = jj == d ? f[g[l + 1]][jj] - ii : f[g[l + 1]][jj] - coor[jj];
+                    // t = jj == d ? f[g[l + 1]][jj] - ii : f[g[l + 1]][jj] - coor[jj];
+                    t = jj == d ? f_send_buffer[(l+1)*3+jj] - ii : f_send_buffer[(l+1)*3+jj] - coor[jj];
                     delta2 += t * t;
                 }
                 if (delta1 <= delta2) break;
                 delta1 = delta2;
                 ++l;
             }
-            idx1 = g[l];
+            // idx1 = g[l];
+            idx1 = l; 
             for (jj = 0; jj < rank; jj++) {
-                d_output_start[(ii - chunck_start) * stride + jj] = f[idx1][jj];
+                d_output_start[(ii - chunck_start) * stride + jj] = f_send_buffer[idx1 * 3 + jj];
             }
-            sign_start[(ii - chunck_start) * stride / 3] = local_sign_buffer[idx1];
+            // sign_start[(ii - chunck_start) * stride / 3] = local_sign_buffer[g[idx1]];
+            sign_start[(ii - chunck_start) * stride / 3] = sign_send_buffer[idx1];
         }
     }
 }

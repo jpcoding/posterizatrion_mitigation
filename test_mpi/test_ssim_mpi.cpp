@@ -17,7 +17,6 @@
 #include "utils/file_utils.hpp"
 #include "utils/qcat_ssim.hpp"
 
-namespace SZ = SZ3;
 
 int main(int argc, char** argv) {
     int mpi_rank, size;
@@ -41,8 +40,8 @@ int main(int argc, char** argv) {
     block_dims[2] = orig_dims[2] / dims[2];
     size_t block_size = block_dims[0] * block_dims[1] * block_dims[2];
 
-    size_t global_strides[3] = {orig_dims[2] * orig_dims[1], orig_dims[2], 1};
-    size_t local_strides[3] = {block_dims[2] * block_dims[1], block_dims[2], 1};
+    size_t global_strides[3] = {(size_t)orig_dims[2] * orig_dims[1], (size_t)orig_dims[2], 1};
+    size_t local_strides[3] = {(size_t)block_dims[2] * block_dims[1], (size_t)block_dims[2], 1};
 
     int periods[3] = {0, 0, 0};  // No periodicity in any dimension
     int coords[3] = {0, 0, 0};   // Coords of this process in the grid
@@ -77,9 +76,7 @@ int main(int argc, char** argv) {
     // use MPI_File_write_at to write the data to the file
     MPI_File fh;
     MPI_File fh_decomp;
-    MPI_File_open(MPI_COMM_WORLD, out_filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
-    MPI_File_open(MPI_COMM_WORLD, decomp_filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL,
-                  &fh_decomp);
+
     // merge and write file to one file
     {
         int local_starts[3] = {0, 0, 0};
@@ -87,6 +84,9 @@ int main(int argc, char** argv) {
             local_starts[i] = coords[i] * block_dims[i];
         }
         MPI_Datatype subarray;
+        MPI_File_open(MPI_COMM_WORLD, out_filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
+        MPI_File_open(MPI_COMM_WORLD, decomp_filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL,
+                      &fh_decomp);
         MPI_Type_create_subarray(3, orig_dims, block_dims, local_starts, MPI_ORDER_C, MPI_FLOAT, &subarray);
         MPI_Type_commit(&subarray);
         MPI_File_set_view(fh, 0, MPI_FLOAT, subarray, "native", MPI_INFO_NULL);
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
         }
     }
     size_t w_block_size = w_block_dims[0] * w_block_dims[1] * w_block_dims[2];
-    size_t w_local_strides[3] = {w_block_dims[2] * w_block_dims[1], w_block_dims[2], 1};
+    size_t w_local_strides[3] = {(size_t)w_block_dims[2] * w_block_dims[1], (size_t)w_block_dims[2], 1};
     std::vector<float> w_orig_data(w_block_size, 0);
     std::vector<float> w_decomp_data(w_block_size, 0);
     {

@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string>
+#include <array>
+
 
 int main(int argc, char *argv[]) {
   int mpi_rank, size;

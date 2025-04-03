@@ -118,7 +118,7 @@ namespace PM
     double SSIM_1d_windowed(T *oriData, T *decData, size_t size0, int windowSize0, int windowShift0)
     {
         int offset0;
-        int nw = 0; // Number of windows
+        size_t nw = 0; // Number of windows
         double ssimSum = 0;
         int offsetInc0;
 
@@ -145,7 +145,7 @@ namespace PM
     double SSIM_2d_windowed(T *oriData, T *decData, size_t size1, size_t size0, int windowSize0, int windowSize1, int windowShift0, int windowShift1)
     {
         int offset0, offset1;
-        int nw = 0; // Number of windows
+        size_t nw = 0; // Number of windows
         double ssimSum = 0;
         int offsetInc0, offsetInc1;
 
@@ -260,7 +260,7 @@ namespace PM
     double SSIM_3d_windowed(T *oriData, T *decData, size_t size2, size_t size1, size_t size0, int windowSize0, int windowSize1, int windowSize2, int windowShift0, int windowShift1, int windowShift2)
     {
         int offset0, offset1, offset2;
-        int nw = 0; // Number of windows
+        size_t nw = 0; // Number of windows
         double ssimSum = 0;
         int offsetInc0, offsetInc1, offsetInc2;
 
@@ -390,7 +390,7 @@ namespace PM
     double SSIM_4d_windowed(T *oriData, T *decData, size_t size3, size_t size2, size_t size1, size_t size0, int windowSize0, int windowSize1, int windowSize2, int windowSize3, int windowShift0, int windowShift1, int windowShift2, int windowShift3)
     {
         int offset0, offset1, offset2, offset3;
-        int nw = 0; // Number of windows
+        size_t nw = 0; // Number of windows
         double ssimSum = 0;
         int offsetInc0, offsetInc1, offsetInc2, offsetInc3;
 

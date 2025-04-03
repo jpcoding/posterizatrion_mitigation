@@ -107,6 +107,10 @@ int main(int argc, char** argv) {
         printf("Read time: %f\n", read_time_end - read_time);
     }
 
+
+    // free subarray datatype
+    MPI_Type_free(&subarray);
+
     double local_ssim_sum = 0;
     double local_nw = 0;
     size_t max_offset2 = w_block_dims[0] - ssim_win_size;
