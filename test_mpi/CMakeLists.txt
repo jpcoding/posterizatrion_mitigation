@@ -12,3 +12,15 @@ add_executable(test_ssim_mpi_merged_file test_ssim_mpi_merged_file.cpp)
 target_link_libraries(test_ssim_mpi_merged_file PRIVATE MPI::MPI_CXX)
 add_executable(test_merge_file test_merge_file.cpp)
 target_link_libraries(test_merge_file PRIVATE MPI::MPI_CXX)
+
+add_executable(test_compensation_parallel test_compensation_parallel.cpp)
+target_link_libraries(test_compensation_parallel PRIVATE MPI::MPI_CXX OpenMP::OpenMP_CXX )
+
+add_executable(test_data_exchange test_data_exchange.cpp)
+target_link_libraries(test_data_exchange PRIVATE MPI::MPI_CXX OpenMP::OpenMP_CXX )
+
+add_executable(test_compensation_opt test_compensation_opt.cpp)
+target_link_libraries(test_compensation_opt PRIVATE MPI::MPI_CXX OpenMP::OpenMP_CXX )
+
+add_executable(test_decompose_file test_decompose_file.cpp)
+target_link_libraries(test_decompose_file PRIVATE MPI::MPI_CXX )

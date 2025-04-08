@@ -397,6 +397,10 @@ class CompensationIDW {
         } else if (N == 3) {
             return get_compensation_map_3d();
         }
+        else{
+            std::cerr << "N is not 2 or 3" << std::endl;
+            return std::vector<T_data>(input_size, 0);
+        }
     }
 
    private:

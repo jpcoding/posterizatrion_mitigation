@@ -6,17 +6,19 @@
 #include <cstddef>
 #include <cstdlib>
 #include <string>
+#include <type_traits>
 #include <vector>
 
+#include "CLI/CLI.hpp"
 #include "SZ3/quantizer/IntegerQuantizer.hpp"
 #include "mpi/boundary.hpp"
 #include "mpi/compensation.hpp"
 #include "mpi/data_exchange.hpp"
 #include "mpi/edt.hpp"
+#include "mpi/edt_opt.hpp"
 #include "mpi/mpi_datatype.hpp"
 #include "mpi/stats.hpp"
 #include "utils/file_utils.hpp"
-#include "CLI/CLI.hpp"
 
 namespace SZ = SZ3;
 
@@ -30,11 +32,13 @@ int main(int argc, char** argv) {
     std::array<int, 3> dims_array = {0, 0, 0};  // Let MPI decide the best grid dimensions
     std::array<int, 3> orig_dims_array = {0, 0, 0};
 
-    double rel_eb = 0.0; 
+    double rel_eb = 0.0;
     std::string dir_prefix;   // Directory prefix for the blocks
     std::string name_prefix;  // Name prefix for the blocks
-    std::string out_dir; 
-    bool use_rbf = false; 
+    std::string out_dir;
+    bool use_rbf = false;
+    bool local_edt= false; 
+    bool local_quant = false; 
 
     CLI::App app{"Merge files using MPI - 3D"};
     argv = app.ensure_utf8(argv);
@@ -44,13 +48,14 @@ int main(int argc, char** argv) {
     app.add_option("--prefix", name_prefix, "output file")->required();
     app.add_option("--origdims", orig_dims_array, "dimensions")->required();
     app.add_option("--outdir", out_dir, "output file")->required();
-    app.add_option("--use_rbf", use_rbf, "use rbf")->required(); 
+    app.add_option("--use_rbf", use_rbf, "use rbf")->required();
+    app.add_option("--local_edt", local_edt, "use local edt")->required();
+    app.add_option("--local_quant", local_quant, "use local quant")->required();
     CLI11_PARSE(app, argc, argv);
 
     int* orig_dims = orig_dims_array.data();
-    int* dims = dims_array.data(); 
+    int* dims = dims_array.data();
 
-    
     // dims[0] = atoi(argv[1]);
     // dims[1] = atoi(argv[2]);
     // dims[2] = atoi(argv[3]);
@@ -61,8 +66,6 @@ int main(int argc, char** argv) {
     // orig_dims[1] = atoi(argv[8]);
     // orig_dims[2] = atoi(argv[9]);
 
-
-
     int periods[3] = {0, 0, 0};  // No periodicity in any dimension
     int coords[3] = {0, 0, 0};   // Coords of this process in the grid
 
@@ -70,7 +73,7 @@ int main(int argc, char** argv) {
     if (mpi_rank == 0) {
         printf("Number of processes: %d\n", size);
         printf("Grid dimensions: (%d, %d, %d)\n", dims[0], dims[1], dims[2]);
-        printf("use rbf: %d\n", (int) use_rbf);
+        printf("use rbf: %d\n", (int)use_rbf);
     }
     // Create a 3D Cartesian communicator
     MPI_Cart_create(MPI_COMM_WORLD, 3, dims, periods, 1, &cart_comm);
@@ -132,7 +135,6 @@ int main(int argc, char** argv) {
 
     MPI_Barrier(cart_comm);
 
-    time = MPI_Wtime() - time;
     size_t global_zero_count = 0;
     size_t global_size = 1;
     for (int i = 0; i < 3; i++) {
@@ -153,8 +155,8 @@ int main(int argc, char** argv) {
     }
     {
         char out_filename[100];
-        sprintf(out_filename, "%s/%s_%d_%d_%d.decomp.f32", out_dir.c_str(), name_prefix.c_str(), coords[0],
-                coords[1], coords[2]);
+        sprintf(out_filename, "%s/%s_%d_%d_%d.decomp.f32", out_dir.c_str(), name_prefix.c_str(), coords[0], coords[1],
+                coords[2]);
         writefile<float>(out_filename, data.get(), block_size);
     }
 
@@ -167,9 +169,6 @@ int main(int argc, char** argv) {
             w_block_dims[i] = block_dims[i] + 2;
         }
         w_block_size *= w_block_dims[i];
-        if (mpi_rank == 21) {
-            printf("w_block_dims[%d]: %d\n", i, w_block_dims[i]);
-        }
     }
     size_t w_block_strides[3] = {(size_t)w_block_dims[1] * w_block_dims[2], (size_t)w_block_dims[2], 1};
     std::vector<int> w_quant_inds(w_block_size, 0);
@@ -177,25 +176,48 @@ int main(int argc, char** argv) {
     // quantization index exchange
     MPI_Barrier(cart_comm);
     time = MPI_Wtime();
+    double time_exchnage1 = MPI_Wtime();
     if (1)
         data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims, w_block_strides,
                        coords, dims, cart_comm);
+    if (0)
+        data_exhange3d_extended(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims,
+                                w_block_strides, 1, coords, dims, cart_comm);
     // barrier
-    // clear the memory used by local quant 
-    std::vector<int>().swap(quant_inds);  // Forces reallocation and frees memory
+    // clear the memory used by local quant
 
     MPI_Barrier(cart_comm);
-    time = MPI_Wtime() - time;
-    if (mpi_rank == 0) {
-        printf("data exchange time = %f \n", time);
-    }
+    time_exchnage1 = MPI_Wtime() - time_exchnage1;
+    // time = MPI_Wtime() - time;
+    // if (mpi_rank == 0) {
+    //     printf("data exchange time = %f \n", time);
+    // }
+    // std::vector<int>().swap(quant_inds);  // Forces reallocation and frees memory
+
     // boundary detection and sign map generation
     std::vector<char> boundary(block_size, 0);
     std::vector<char> sign_map(block_size, 0);
     std::vector<float> compensation_map(block_size, 0.0);
-    if (operation)
-        get_boundary_and_sign_map3d<int, char>(w_quant_inds.data(), boundary.data(), sign_map.data(), w_block_dims,
-                                               w_block_strides, block_dims, block_strides, coords, dims, cart_comm);
+    bool use_local_boundary = local_quant;
+    
+    if (use_local_boundary == false) {
+        if (operation)
+            get_boundary_and_sign_map3d<int, char>(w_quant_inds.data(), boundary.data(), sign_map.data(), w_block_dims,
+                                                   w_block_strides, block_dims, block_strides, coords, dims, cart_comm);
+    }
+    if (use_local_boundary == true) {
+        if (operation) {
+            get_boundary_and_sign_map3d_local<int, char>(quant_inds.data(), boundary.data(), sign_map.data(),
+                                                         block_dims, block_strides, block_dims, block_strides, coords,
+                                                         dims, cart_comm);
+        }
+
+    }
+
+    std::vector<int>().swap(quant_inds);  // Forces reallocation and frees memory
+    std::vector<int>().swap(w_quant_inds);  // Forces reallocation and frees memory
+
+
 
     MPI_Barrier(cart_comm);
     if (mpi_rank == 0) {
@@ -215,36 +237,46 @@ int main(int argc, char** argv) {
     std::vector<float> distance(num_elements, 0.0);
 
     if (1) {
-        edt_3d_and_sign_map(boundary.data(), distance.data(), index.data(), sign_map.data(), data_block_dims.data(),
-                            dims, coords, mpi_rank, size, cart_comm);
+        edt_3d_and_sign_map_opt(boundary.data(), distance.data(), index.data(), sign_map.data(), data_block_dims.data(),
+                                dims, coords, mpi_rank, size, cart_comm,local_edt);
+
         MPI_Barrier(cart_comm);
     }
-    if (mpi_rank == 0) {
+    if (mpi_rank == 1) {
         printf("first edt done  \n");
+        
     }
 
     // complete the sign map for non-edge voxels
     // fill the compensation map for the edge voxels
     char b_tag = 1;
-    // if (1) {
-    //     fill_sign_map3d<char, float>(sign_map.data(), index.data(), compensation_map.data(), boundary.data(), b_tag,
-    //                                  block_size, compensation_magnitude);
-    // }
+
     std::vector<char> w_sign_map(w_block_size, 0);
+    double exchange_time2 = MPI_Wtime(); 
     if (1) {
         data_exhange3d(sign_map.data(), block_dims, block_strides, w_sign_map.data(), w_block_dims, w_block_strides,
                        coords, dims, cart_comm);
     }
     MPI_Barrier(cart_comm);
+    exchange_time2 = MPI_Wtime() - exchange_time2;
     if (mpi_rank == 0) {
         printf("second data exchange done  \n");
     }
     // get the second boundary map
     std::vector<char> boundary_neutral(block_size, 0);
-    if (operation) {
-        get_boundary3d<char, char>(w_sign_map.data(), boundary_neutral.data(), w_block_dims, w_block_strides,
-                                   block_dims, block_strides, coords, dims, cart_comm);
+    if(use_local_boundary == false) {
+        if (operation)
+            get_boundary3d<char, char>(w_sign_map.data(), boundary_neutral.data(), w_block_dims, w_block_strides,
+                                       block_dims, block_strides, coords, dims, cart_comm);
     }
+
+    if(use_local_boundary == true) {
+        if (operation) {
+            get_boundary3d_local<char, char>(sign_map.data(), boundary_neutral.data(), block_dims, block_strides,
+                                             block_dims, block_strides, coords, dims, cart_comm);
+        }
+    }
+
     if (operation) filter_neutral_boundary3d(boundary.data(), boundary_neutral.data(), b_tag, block_size);
 
     MPI_Barrier(cart_comm);
@@ -255,17 +287,16 @@ int main(int argc, char** argv) {
     std::vector<size_t> index_neutral(num_elements, 0);
     std::vector<float> distance_neutral(num_elements, 0.0);
     if (1) {
-        edt_3d(boundary_neutral.data(), distance_neutral.data(), index_neutral.data(), data_block_dims.data(), dims,
-               coords, mpi_rank, size, cart_comm);
+        edt_3d_opt(boundary_neutral.data(), distance_neutral.data(), index_neutral.data(), data_block_dims.data(), dims,
+               coords, mpi_rank, size, cart_comm,local_edt);
 
-        // edt_3d_and_sign_map(boundary_neutral.data(), distance_neutral.data(), sign_map.data(),
-        // data_block_dims.data(),
-        //                     dims, coords, mpi_rank, size, cart_comm);
         MPI_Barrier(cart_comm);
     }
 
-    if (mpi_rank == 0) {
+    if (mpi_rank == 1) {
         printf("sedond edt done  \n");
+        // writefile("distance_array.f32", distance_neutral.data(), distance_neutral.size());
+
     }
 
     // compensation
@@ -279,7 +310,10 @@ int main(int argc, char** argv) {
                          index_neutral.data(), orig_dims, sign_map.data(), block_size, compensation_magnitude);
     }
 
+
+
     MPI_Barrier(cart_comm);
+    time = MPI_Wtime() - time; 
     if (mpi_rank == 0) {
         printf("idw done \n");
     }
@@ -297,8 +331,8 @@ int main(int argc, char** argv) {
     // // printf("Rank %d, wrote quantized data to %s\n", mpi_rank, out_filename);
     {
         char out_filename[100];
-        sprintf(out_filename, "%s/%s_%d_%d_%d.post3d.f32", out_dir.c_str(), name_prefix.c_str(), coords[0],
-                coords[1], coords[2]);
+        sprintf(out_filename, "%s/%s_%d_%d_%d.post3d.f32", out_dir.c_str(), name_prefix.c_str(), coords[0], coords[1],
+                coords[2]);
         writefile<float>(out_filename, data.get(), block_size);
     }
 
@@ -323,6 +357,8 @@ int main(int argc, char** argv) {
     if (mpi_rank == 0) {
         printf("Global max: %f, Global min: %f, abs_eb = %f \n", global_max, global_min, abs_eb);
         printf("Rank %d, time: %f\n", mpi_rank, time);
+        printf("Rank %d, data exchange time: %f\n", mpi_rank, time_exchnage1);
+        printf("Rank %d, second data exchange time: %f\n", mpi_rank, exchange_time2);
     }
 
     // terminate MPI

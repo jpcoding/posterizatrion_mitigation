@@ -1,16 +1,10 @@
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
-#include <memory>
 #include <string>
-// #include "SZ3/api/sz.hpp"
 #include <algorithm>
 #include <vector>
-
 #include "CLI/CLI.hpp"
 #include "SZ3/quantizer/IntegerQuantizer.hpp"
-#include "SZ3/utils/FileUtil.hpp"
 #include "compensation.hpp"
 #include "utils/qcat_ssim.hpp"
 #include "utils/stats.hpp"
@@ -19,7 +13,6 @@
 using Real = float;
 namespace SZ = SZ3;
 
-namespace fs = std::filesystem;
 
 int main(int argc, char **argv) {
     CLI::App app{"OMP version of compensation using EDT method"};
@@ -41,7 +34,7 @@ int main(int argc, char **argv) {
     app.add_option("-e", eb, "eb")->required();
     app.add_option("-q", quantized_file, "quantized file")->required();
     app.add_option("-c", compensation_file, "compensation file")->required();
-    app.add_option("-t", num_threads, "number of threads")->default_val(1)->check(CLI::Range(1, 124));
+    app.add_option("-t", num_threads, "number of threads")->default_val(1)->check(CLI::Range(1, 256));
     app.add_option("--use_rbf", use_rbf, "use rbf")->default_val(false);
 
     CLI11_PARSE(app, argc, argv);

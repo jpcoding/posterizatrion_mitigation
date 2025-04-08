@@ -8,9 +8,6 @@
     /scratch/pji228/useful/direct_quantize/miranda/velocityx.f320.001.quant.i32
 
 
-
-
-
 ./test_3d 3 1008 1008 352 $DATA/aramco_1008x1008x352/pressure_2000.f32.dat \
      pressure_2000.f32.dat.out \
      pressure_2000.f32.dat.quant.i32
@@ -52,3 +49,35 @@
     0.001  \
     Wf48.f32.dec  \
     Wf48.f32.dec.compensated_data.f32 8 
+
+
+mpirun -n 8 ./test_mpi/test_compensation_parallel --mpidims 2 2 2 --rel_eb 0.001 \
+    --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_2x2x2/ \
+    --prefix vx --q_sufix q.32 --c_sufix c.32 --origdims 256 384 384 \
+    --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_2x2x2/
+
+mpirun -n 64 ./test_mpi/test_boundary_mpi --mpidims 4 4 4  --rel_eb 0.001 \
+    --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
+    --prefix vx --origdims 256 384 384 \
+    --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/
+
+
+#1 
+mpirun -n 64 ./test_mpi/test_compensation_parallel --mpidims 4 4 4  --rel_eb 0.001 \
+    --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
+    --prefix vx --q_sufix q.32 --c_sufix c.32 --origdims 256 384 384 \
+    --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/
+
+mpirun -n 64  ./test_mpi/test_merge_file  --mpidims 4 4 4 \
+    --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
+    --prefix vx --sufix c.32 --orig_dims 256 384 384 --out block_compensated.nocommunication.f32
+#2 
+mpirun -n 64 ./test_mpi/test_compensation_parallel --mpidims 4 4 4  --rel_eb 0.001 \
+    --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
+    --prefix vx --q_sufix q.32 --c_sufix c.32 --origdims 256 384 384 \
+    --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/
+
+
+mpirun -n 64  ./test_mpi/test_merge_file  --mpidims 4 4 4 \
+    --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
+    --prefix vx --sufix .post3d.f32 --orig_dims 256 384 384 --out block_compensated.local.f32

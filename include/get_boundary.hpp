@@ -4,10 +4,11 @@
 #include <iostream>
 #include <vector>
 #include <tuple> 
+#include "omp.h"    
 
 namespace PM {
 template<typename T>
-std::vector<char> get_boundary_2d(T* quant_index, int N, int* dims) {
+inline std::vector<char> get_boundary_2d(T* quant_index, int N, int* dims) {
     std::vector<char> boundary;
 
     size_t stride[2];
@@ -15,6 +16,7 @@ std::vector<char> get_boundary_2d(T* quant_index, int N, int* dims) {
     stride[1] = 1;
     size_t n = dims[0] * dims[1];
     boundary.resize(n, 0);
+
 
     for (size_t i = 1; i < dims[0] - 1; i++) {
         for (size_t j = 1; j < dims[1] - 1; j++) {
@@ -48,7 +50,7 @@ std::vector<char> get_boundary_2d(T* quant_index, int N, int* dims) {
 }
 
 template<typename T> 
-std::vector<char> get_boundary_3d(T* quant_index, int N, int* dims) {
+inline std::vector<char> get_boundary_3d(T* quant_index, int N, int* dims, int num_threads = 1) { 
     // define stride
     size_t stride[3];
     stride[0] = dims[1] * dims[2];
@@ -58,7 +60,7 @@ std::vector<char> get_boundary_3d(T* quant_index, int N, int* dims) {
     std::vector<char> boundary;
     size_t n = dims[0] * dims[1] * dims[2];
     boundary.resize(n, 0);
-
+    #pragma omp parallel for collapse(3) num_threads(num_threads)
     for (size_t i = 1; i < dims[0] - 1; i++) {
         for (size_t j = 1; j < dims[1] - 1; j++) {
             for (size_t k = 1; k < dims[2] - 1; k++) {
@@ -123,7 +125,7 @@ std::vector<char> get_boundary(T* quant_index, int N, int* dims) {
     }
 }
 
-inline std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_2d(int* quant_index, int N, int* dims)
+inline std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_2d(int* quant_index, int N, int* dims,int num_threads)
 {
     std::vector<char> boundary;
     std::vector<char> sign_map;
@@ -134,6 +136,7 @@ inline std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_ma
     boundary.resize(n, 0);
     sign_map.resize(n, 0);
 
+    #pragma omp parallel for collapse(2) num_threads(num_threads)
     for (size_t i = 1; i < dims[0] - 1; i++) {
         for (size_t j = 1; j < dims[1] - 1; j++) {
             size_t idx = i * stride[0] + j * stride[1];
@@ -162,7 +165,7 @@ inline std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_ma
     return {std::move(boundary), std::move(sign_map)};
 }
 
-std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_3d(int* quant_index, int N, int* dims) {
+inline std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_3d(int* quant_index, int N, int* dims,int num_threads) {
     // define stride
     size_t stride[3];
     stride[0] = dims[1] * dims[2];
@@ -174,14 +177,16 @@ std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_3d(in
     boundary.resize(n, 0);
     sign_map.resize(n, 0);
 
-    int neighbor_quant[6];
-    char signs[6]; 
+    // int neighbor_quant[6];
+    // char signs[6]; 
 
+    #pragma omp parallel for collapse(3) num_threads(num_threads)
     for (size_t i = 1; i < dims[0] - 1; i++) {
         for (size_t j = 1; j < dims[1] - 1; j++) {
             for (size_t k = 1; k < dims[2] - 1; k++) {
                 size_t idx = i * stride[0] + j * stride[1] + k * stride[2];
-
+                int neighbor_quant[6];
+                char signs[6]; 
                 int left = quant_index[idx - stride[0]];
                 int right = quant_index[idx + stride[0]];
                 int up = quant_index[idx - stride[1]];
@@ -223,11 +228,11 @@ std::tuple<std::vector<char>, std::vector<char>> get_boundary_and_sign_map_3d(in
     return {std::move(boundary), std::move(sign_map)};
 }
 
-std::tuple<std::vector<char>, std::vector<char>>  get_boundary_and_sign_map(int* quant_index, int N, int* dims) {
+inline std::tuple<std::vector<char>, std::vector<char>>  get_boundary_and_sign_map(int* quant_index, int N, int* dims, int num_threads = 1) {
     if (N == 2) {
-        return get_boundary_and_sign_map_2d(quant_index, N, dims);
+        return get_boundary_and_sign_map_2d(quant_index, N, dims,num_threads);
     } else if (N == 3) {
-        return get_boundary_and_sign_map_3d(quant_index, N, dims);
+        return get_boundary_and_sign_map_3d(quant_index, N, dims,num_threads );
     } else {
         std::cout << "Error: N should be 2 or 3" << std::endl;
         exit(1);

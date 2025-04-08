@@ -24,7 +24,11 @@ int main(int argc, char *argv[]) {
   int coords[3] = {0, 0, 0};  // Coords of this process in the grid
   MPI_Comm cart_comm;
 
-  MPI_Init(&argc, &argv);
+  // MPI_Init(&argc, &argv);
+  MPI_Init(nullptr, nullptr);
+  MPI_Finalize();
+
+  return 0; 
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -46,6 +50,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
+
   // Create a 3D Cartesian communicator
   MPI_Cart_create(MPI_COMM_WORLD, 3, dims, periods, 1, &cart_comm);
 
@@ -53,6 +58,9 @@ int main(int argc, char *argv[]) {
   MPI_Cart_coords(cart_comm, mpi_rank, 3, coords);
   // printf("Rank %d -> Coords (%d, %d, %d)\n", mpi_rank, coords[0], coords[1],
   // coords[2]);
+
+
+
 
   // // Get neighbors in each direction
   // int neighbor_left, neighbor_right;

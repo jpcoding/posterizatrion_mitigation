@@ -527,7 +527,7 @@ std::tuple<std::vector<T>, std::vector<size_t>> NI_EuclideanFeatureTransform(cha
     for(jj = 0; jj < mx; jj++) {
         f[jj] = tmp + jj * N;
     }
-    std::cout << "aux time = " << timer.stop() << std::endl;
+    // std::cout << "aux time = " << timer.stop() << std::endl;
 
     /* First call of recursive feature transform */
     
