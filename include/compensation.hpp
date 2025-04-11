@@ -486,9 +486,6 @@ class Compensation {
         auto indexes = std::move(edt_result.indexes);
 
 
-
-
-
         // print edt time
         // printf("edt time = %.10f \n", edt_omp.get_edt_time());
         // std::cout << "distance time = " << edt_omp.get_distance_time() << std::endl;
@@ -503,9 +500,10 @@ class Compensation {
                 sign_map[i] = sign_map[indexes[i]];
             }
         }
+        writefile("sign.int8", sign_map.data(), input_size);
+
 
         // dump the sign map
-        // writefile("sign.int8", sign_map.data(), input_size);
 
         // get the second boundry map
         auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data());
@@ -544,7 +542,6 @@ class Compensation {
         auto distance_array2 = std::move(edt_result2.distance);
         auto indexes2 = std::move(edt_result2.indexes);
         // dump the distance array
-        // writefile("distance1.f32", distance_array.data(), input_size);
         // writefile("distance2.f32", distance_array2.data(), input_size);
 
         // {

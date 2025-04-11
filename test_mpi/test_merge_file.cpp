@@ -73,7 +73,8 @@ int main(int argc, char** argv) {
     MPI_File fh;
     MPI_File_open(MPI_COMM_WORLD, out_filename.c_str(), MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
 
-
+    MPI_Barrier(MPI_COMM_WORLD);    
+    double time = MPI_Wtime();
     for (int i = start; i < end; i++) {
         coords[0] = coords_list[i][0];
         coords[1] = coords_list[i][1];
@@ -103,6 +104,12 @@ int main(int argc, char** argv) {
         }
     }
     MPI_File_close(&fh);
+    MPI_Barrier(MPI_COMM_WORLD);    
+    double time_end = MPI_Wtime() - time; 
+    if (mpi_rank == 0) {
+        printf("Time taken to merge files: %f seconds\n", time_end);
+    }
+    
 
 
     MPI_Finalize();

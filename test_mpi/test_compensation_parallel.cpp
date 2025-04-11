@@ -168,10 +168,10 @@ int main(int argc, char** argv) {
         for (int i = 0; i < block_size; i++) {
             data[i] += compensation_map[i];
         }
-        if(mpi_rank == 1) {
-            auto distance_array = compensator.get_distance_array1();
-            writefile("distance1.f32", distance_array.data(), distance_array.size());
-        } 
+        // if(mpi_rank == 1) {
+        //     auto distance_array = compensator.get_distance_array1();
+        //     writefile("distance1.f32", distance_array.data(), distance_array.size());
+        // } 
     }
 
     //barrier

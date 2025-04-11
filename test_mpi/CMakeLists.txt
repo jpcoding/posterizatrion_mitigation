@@ -24,3 +24,7 @@ target_link_libraries(test_compensation_opt PRIVATE MPI::MPI_CXX OpenMP::OpenMP_
 
 add_executable(test_decompose_file test_decompose_file.cpp)
 target_link_libraries(test_decompose_file PRIVATE MPI::MPI_CXX )
+
+
+add_executable(test_sequantial test_sequantial.cpp)
+target_link_libraries(test_sequantial OpenMP::OpenMP_CXX MPI::MPI_CXX )

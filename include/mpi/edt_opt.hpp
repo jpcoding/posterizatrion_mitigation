@@ -41,16 +41,16 @@ inline void edt_core_mpi_local(int *d_output, const size_t stride, const uint ra
 
     for (ii = 0; ii < len; ii++) {
         if (f[ii][0] >= 0) {
-            int fd = f[ii][d];
-            int wR = 0.0;
+            double fd = f[ii][d];
+            double wR = 0.0;
             for (jj = 0; jj < rank; jj++) {
                 if (jj != d) {
-                    int tw = (f[ii][jj] - coor[jj]);
+                    double tw = (f[ii][jj] - coor[jj]);
                     wR += tw * tw;
                 }
             }
             while (l >= 1) {
-                int a, b, c, uR = 0, vR = 0, f1;
+                double  a, b, c, uR = 0, vR = 0, f1;
                 idx1 = g[l];
                 f1 = f[idx1][d];
                 idx2 = g[l - 1];
@@ -60,9 +60,9 @@ inline void edt_core_mpi_local(int *d_output, const size_t stride, const uint ra
                 c = a + b;
                 for (jj = 0; jj < rank; jj++) {
                     if (jj != d) {
-                        int cc = coor[jj];
-                        int tu = f[idx2][jj] - cc;
-                        int tv = f[idx1][jj] - cc;
+                        double  cc = coor[jj];
+                        double  tu = f[idx2][jj] - cc;
+                        double  tv = f[idx1][jj] - cc;
                         uR += tu * tu;
                         vR += tv * tv;
                     }
@@ -80,14 +80,14 @@ inline void edt_core_mpi_local(int *d_output, const size_t stride, const uint ra
     if (maxl >= 0) {
         l = 0;
         for (ii = chunck_start; ii < len + chunck_start; ii++) {
-            int delta1 = 0, t;
+            double delta1 = 0, t;
             for (jj = 0; jj < rank; jj++) {
                 t = jj == d ? f[g[l]][jj] - ii : f[g[l]][jj] - coor[jj];
 
                 delta1 += t * t;
             }
             while (l < maxl) {
-                int delta2 = 0.0;
+                double delta2 = 0.0;
                 for (jj = 0; jj < rank; jj++) {
                     t = jj == d ? f[g[l + 1]][jj] - ii : f[g[l + 1]][jj] - coor[jj];
 
@@ -135,16 +135,16 @@ inline void edt_and_sign_core_mpi_local(int *d_output, char *sign_map, const siz
 
     for (ii = 0; ii < len; ii++) {
         if (f[ii][0] >= 0) {
-            int fd = f[ii][d];
-            int wR = 0.0;
+            double fd = f[ii][d];
+            double wR = 0.0;
             for (jj = 0; jj < rank; jj++) {
                 if (jj != d) {
-                    int tw = (f[ii][jj] - coor[jj]);
+                    double tw = (f[ii][jj] - coor[jj]);
                     wR += tw * tw;
                 }
             }
             while (l >= 1) {
-                int a, b, c, uR = 0, vR = 0, f1;
+                double a, b, c, uR = 0, vR = 0, f1;
                 idx1 = g[l];
                 f1 = f[idx1][d];
                 idx2 = g[l - 1];
@@ -153,9 +153,9 @@ inline void edt_and_sign_core_mpi_local(int *d_output, char *sign_map, const siz
                 c = a + b;
                 for (jj = 0; jj < rank; jj++) {
                     if (jj != d) {
-                        int cc = coor[jj];
-                        int tu = f[idx2][jj] - cc;
-                        int tv = f[idx1][jj] - cc;
+                        double cc = coor[jj];
+                        double tu = f[idx2][jj] - cc;
+                        double tv = f[idx1][jj] - cc;
                         uR += tu * tu;
                         vR += tv * tv;
                     }
@@ -173,14 +173,14 @@ inline void edt_and_sign_core_mpi_local(int *d_output, char *sign_map, const siz
     if (maxl >= 0) {
         l = 0;
         for (ii = chunck_start; ii < len + chunck_start; ii++) {
-            int delta1 = 0, t;
+            double delta1 = 0, t;
             for (jj = 0; jj < rank; jj++) {
                 t = jj == d ? f[g[l]][jj] - ii : f[g[l]][jj] - coor[jj];
 
                 delta1 += t * t;
             }
             while (l < maxl) {
-                int delta2 = 0.0;
+                double  delta2 = 0.0;
                 for (jj = 0; jj < rank; jj++) {
                     t = jj == d ? f[g[l + 1]][jj] - ii : f[g[l + 1]][jj] - coor[jj];
 
@@ -388,8 +388,8 @@ inline void edt_and_sign_local_update_backward(int *d_output, char *sign_map, si
     }
 }
 
-inline void exchange_and_update(int *output, char *sign_map, int *data_block_dims, int direction, int *input_stride,
-                                int *output_stride, int *face_buffer_up_send, int *face_buffer_up_recv,
+inline void exchange_and_update(int *output, char *sign_map, int *data_block_dims, int direction, size_t *input_stride,
+    size_t *output_stride, int *face_buffer_up_send, int *face_buffer_up_recv,
                                 int *face_buffer_down_send, int *face_buffer_down_recv, char *face_sign_buffer_up_send,
                                 char *face_sign_buffer_up_recv, char *face_sign_buffer_down_send,
                                 char *face_sign_buffer_down_recv, int **ff, char *local_sign_buffer, int mpi_rank,
@@ -482,7 +482,7 @@ inline void exchange_and_update(int *output, char *sign_map, int *data_block_dim
     }
 }
 
-inline void exchange_and_update(int *output, int *data_block_dims, int direction, int *input_stride, int *output_stride,
+inline void exchange_and_update(int *output, int *data_block_dims, int direction, size_t *input_stride, size_t *output_stride,
                                 int *face_buffer_up_send, int *face_buffer_up_recv, int *face_buffer_down_send,
                                 int *face_buffer_down_recv, int **ff, char *local_sign_buffer, int mpi_rank,
                                 int mpi_size, int *mpi_coords, int mpi_depth, int mpi_height, int mpi_width,
@@ -592,17 +592,27 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
         ff[i] = f + i * 3;
     }
     size_t face_size = max_dim * second_max_dim;
-    int *face_buffer_up_send = (int *)malloc(sizeof(int) * face_size * 3);
-    int *face_buffer_up_recv = (int *)malloc(sizeof(int) * face_size * 3);
-    int *face_buffer_down_send = (int *)malloc(sizeof(int) * face_size * 3);
-    int *face_buffer_down_recv = (int *)malloc(sizeof(int) * face_size * 3);
-    char *face_sign_buffer_up_send = (char *)malloc(sizeof(char) * face_size);
-    char *face_sign_buffer_up_recv = (char *)malloc(sizeof(char) * face_size);
-    char *face_sign_buffer_down_send = (char *)malloc(sizeof(char) * face_size);
-    char *face_sign_buffer_down_recv = (char *)malloc(sizeof(char) * face_size);
+    int *face_buffer_up_send;
+    int *face_buffer_up_recv;
+    int *face_buffer_down_send ;
+    int *face_buffer_down_recv ;
+    char *face_sign_buffer_up_send;
+    char *face_sign_buffer_up_recv ;
+    char *face_sign_buffer_down_send ;
+    char *face_sign_buffer_down_recv ;
+    if(local_edt == false){
+        face_buffer_up_send = (int *)malloc(sizeof(int) * face_size * 3);
+        face_buffer_up_recv = (int *)malloc(sizeof(int) * face_size * 3);
+        face_buffer_down_send = (int *)malloc(sizeof(int) * face_size * 3);
+        face_buffer_down_recv = (int *)malloc(sizeof(int) * face_size * 3);
+        face_sign_buffer_up_send = (char *)malloc(sizeof(char) * face_size);
+        face_sign_buffer_up_recv = (char *)malloc(sizeof(char) * face_size);
+        face_sign_buffer_down_send = (char *)malloc(sizeof(char) * face_size);
+        face_sign_buffer_down_recv = (char *)malloc(sizeof(char) * face_size);
+    }
 
-    int input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
-    int output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
+    size_t input_stride[3] = {(size_t)data_block_dims[2] * data_block_dims[1], (size_t)data_block_dims[2], 1};
+    size_t output_stride[3] = {(size_t)3 * input_stride[0], (size_t)3 * input_stride[1], (size_t)3 * input_stride[2]};
     int direction;
     direction = 0;
     int x_dir = (direction + 1) % 3;
@@ -699,6 +709,16 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
     free(f);
     free(ff);
     free(local_sign_buffer);
+    if(local_edt == false){
+        free(face_buffer_up_send);
+        free(face_buffer_up_recv);
+        free(face_buffer_down_send);
+        free(face_buffer_down_recv);
+        free(face_sign_buffer_up_send);
+        free(face_sign_buffer_up_recv);
+        free(face_sign_buffer_down_send);
+        free(face_sign_buffer_down_recv);
+    }
 }
 
 template <typename T_boundary, typename T_distance, typename T_index>
@@ -729,13 +749,21 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
         ff[i] = f + i * 3;
     }
     size_t face_size = max_dim * second_max_dim;
-    int *face_buffer_up_send = (int *)malloc(sizeof(int) * face_size * 3);
-    int *face_buffer_up_recv = (int *)malloc(sizeof(int) * face_size * 3);
-    int *face_buffer_down_send = (int *)malloc(sizeof(int) * face_size * 3);
-    int *face_buffer_down_recv = (int *)malloc(sizeof(int) * face_size * 3);
+    int *face_buffer_up_send ;
+    int *face_buffer_up_recv ;
+    int *face_buffer_down_send ;
+    int *face_buffer_down_recv;
 
-    int input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
-    int output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
+    if(local_edt == false){
+        face_buffer_up_send = (int *)malloc(sizeof(int) * face_size * 3);
+        face_buffer_up_recv = (int *)malloc(sizeof(int) * face_size * 3);
+        face_buffer_down_send = (int *)malloc(sizeof(int) * face_size * 3);
+        face_buffer_down_recv = (int *)malloc(sizeof(int) * face_size * 3);
+    }
+
+
+    size_t  input_stride[3] = {(size_t) data_block_dims[2] * data_block_dims[1], (size_t)data_block_dims[2], 1};
+    size_t output_stride[3] = {(size_t)3 * input_stride[0], (size_t)3 * input_stride[1], (size_t)3 * input_stride[2]};
     int direction;
     direction = 0;
     int x_dir = (direction + 1) % 3;
@@ -823,6 +851,14 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
     free(f);
     free(ff);
     free(local_sign_buffer);
+
+    if(local_edt == false){
+        free(face_buffer_up_send);
+        free(face_buffer_up_recv);
+        free(face_buffer_down_send);
+        free(face_buffer_down_recv);
+
+    }
 }
 
 #endif  // EDT_LOCAL_MPI

@@ -194,19 +194,19 @@ void get_boundary_and_sign_map3d_local(T_quant* w_quant_inds, T_boundary* bounda
                 orig_idx = i * orig_strides[0] + j * orig_strides[1] + k * orig_strides[2];
                 w_offset = orig_idx;
                 T_quant cur_quant = w_quant_inds[w_offset];
-                T_quant left = w_quant_inds[w_offset - 1];
-                T_quant right = w_quant_inds[w_offset + 1];
-                T_quant up = w_quant_inds[w_offset - w_strides[1]];
-                T_quant down = w_quant_inds[w_offset + w_strides[1]];
-                T_quant front = w_quant_inds[w_offset - w_strides[0]];
-                T_quant back = w_quant_inds[w_offset + w_strides[0]];
+                int left = w_quant_inds[orig_idx - orig_strides[0]];
+                int right = w_quant_inds[orig_idx + orig_strides[0]];
+                int up = w_quant_inds[orig_idx - orig_strides[1]];
+                int down = w_quant_inds[orig_idx + orig_strides[1]];
+                int front = w_quant_inds[orig_idx - orig_strides[2]];
+                int back = w_quant_inds[orig_idx + orig_strides[2]];
 
                 neighbor_quant[0] = up;
                 neighbor_quant[1] = down;
-                neighbor_quant[2] = left;
-                neighbor_quant[3] = right;
-                neighbor_quant[4] = front;
-                neighbor_quant[5] = back;
+                neighbor_quant[2] = front;
+                neighbor_quant[3] = back;
+                neighbor_quant[4] = left;
+                neighbor_quant[5] = right;
                 
                 if(left != cur_quant || right != cur_quant || up != cur_quant || down != cur_quant || front != cur_quant || back != cur_quant) {
                     boundary[orig_idx] = 1;

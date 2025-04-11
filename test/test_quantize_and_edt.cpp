@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
 
     // cast dims to size_t
-    std::vector<size_t> dims_(data_size);
+    std::vector<size_t> dims_(3);
     for (int i = 0; i < N; i++) {
         dims_[i] = dims[i];
     }

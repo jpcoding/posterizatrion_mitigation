@@ -11,7 +11,7 @@ add_executable(direct_quantize direct_quantize.cpp)
 # target_include_directories(test_3d_rbf PUBLIC "/scratch/pji228/gittmp/alglib/install/include")
 # target_link_directories(test_3d_rbf PUBLIC "/scratch/pji228/gittmp/alglib/install/lib64")
 # target_link_libraries(test_3d_rbf PUBLIC alglib OpenMP::OpenMP_CXX)
-# add_executable(test_quantize_and_edt test_quantize_and_edt.cpp)
+add_executable(test_quantize_and_edt test_quantize_and_edt.cpp)
 # # link to omp 
 target_link_libraries(test_quantize_and_edt OpenMP::OpenMP_CXX )
 add_executable(test_3d_as_slice test_3d_as_slice.cpp)

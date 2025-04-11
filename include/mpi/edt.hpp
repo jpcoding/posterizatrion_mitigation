@@ -683,8 +683,8 @@ void edt_3d(T_boundary *boundary, T_distance *distance, T_index *index, int *dat
     int* f_send_buffer = (int *)malloc(sizeof(int) * max_dim * 3 * max_mpi_dim);
 
 
-    int input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
-    int output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
+    size_t input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
+    size_t output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
 
     int global_dims[3] = {data_block_dims[0] * mpi_dims[0], data_block_dims[1] * mpi_dims[1],
                           data_block_dims[2] * mpi_dims[2]};
@@ -808,8 +808,8 @@ void edt_3d_and_sign_map(T_boundary *boundary, T_distance *distance, T_index *in
         ff[i] = f + i * 3;
     }
 
-    int input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
-    int output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
+    size_t input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
+    size_t output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
 
     int direction;
     // dim 0
