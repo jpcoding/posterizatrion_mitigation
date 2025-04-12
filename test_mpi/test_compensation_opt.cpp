@@ -134,6 +134,7 @@ int main(int argc, char** argv) {
     }
 
     MPI_Barrier(cart_comm);
+    time = MPI_Wtime() - time;
 
     size_t global_zero_count = 0;
     size_t global_size = 1;

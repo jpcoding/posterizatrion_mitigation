@@ -114,11 +114,11 @@ char get_sign(T_data_sign data) {
 
 
 template<typename T> 
-std::vector<char> get_boundary(T* quant_index, int N, int* dims) {
+std::vector<char> get_boundary(T* quant_index, int N, int* dims, int thread_num = 1 ) {
     if (N == 2) {
         return get_boundary_2d(quant_index, N, dims);
     } else if (N == 3) {
-        return get_boundary_3d(quant_index, N, dims);
+        return get_boundary_3d(quant_index, N, dims,thread_num);
     } else {
         std::cout << "Error: N should be 2 or 3" << std::endl;
         exit(1);

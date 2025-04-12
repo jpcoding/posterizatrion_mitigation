@@ -125,7 +125,7 @@ static void _VoronoiFT(int *pf, npy_intp len, npy_intp *coor, int rank,
     
     // _VoronoiFT_time += timer.stop(); 
     for(ii = 0; ii < len; ii++) {
-        if (*(pf + ii * stride) >= 0) {
+        if (f[ii][0] >= 0) {
             double fd = f[ii][d];
             double wR = 0.0;
             for(jj = 0; jj < rank; jj++) {

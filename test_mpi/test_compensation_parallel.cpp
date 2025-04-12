@@ -45,8 +45,8 @@ int main(int argc, char** argv) {
     app.add_option("--mpidims", dims_array, "mpi dimensions")->required();
     app.add_option("--dir", dir_prefix, "input file")->required();
     app.add_option("--prefix", name_prefix, "output file")->required();
-    app.add_option("--q_sufix", quantized_file_sufix, "quantized file sufix")->required();
-    app.add_option("--c_sufix", compensated_file_sufix, "compensated file sufix")->required();
+    app.add_option("--q_suffix", quantized_file_sufix, "quantized file sufix")->required();
+    app.add_option("--c_suffix", compensated_file_sufix, "compensated file sufix")->required();
 
     app.add_option("--origdims", orig_dims_array, "dimensions")->required();
     app.add_option("--outdir", out_dir, "output file")->required();
@@ -168,10 +168,6 @@ int main(int argc, char** argv) {
         for (int i = 0; i < block_size; i++) {
             data[i] += compensation_map[i];
         }
-        // if(mpi_rank == 1) {
-        //     auto distance_array = compensator.get_distance_array1();
-        //     writefile("distance1.f32", distance_array.data(), distance_array.size());
-        // } 
     }
 
     //barrier

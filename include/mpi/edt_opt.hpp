@@ -50,7 +50,7 @@ inline void edt_core_mpi_local(int *d_output, const size_t stride, const uint ra
                 }
             }
             while (l >= 1) {
-                double  a, b, c, uR = 0, vR = 0, f1;
+                double a, b, c, uR = 0, vR = 0, f1;
                 idx1 = g[l];
                 f1 = f[idx1][d];
                 idx2 = g[l - 1];
@@ -60,9 +60,9 @@ inline void edt_core_mpi_local(int *d_output, const size_t stride, const uint ra
                 c = a + b;
                 for (jj = 0; jj < rank; jj++) {
                     if (jj != d) {
-                        double  cc = coor[jj];
-                        double  tu = f[idx2][jj] - cc;
-                        double  tv = f[idx1][jj] - cc;
+                        double cc = coor[jj];
+                        double tu = f[idx2][jj] - cc;
+                        double tv = f[idx1][jj] - cc;
                         uR += tu * tu;
                         vR += tv * tv;
                     }
@@ -180,7 +180,7 @@ inline void edt_and_sign_core_mpi_local(int *d_output, char *sign_map, const siz
                 delta1 += t * t;
             }
             while (l < maxl) {
-                double  delta2 = 0.0;
+                double delta2 = 0.0;
                 for (jj = 0; jj < rank; jj++) {
                     t = jj == d ? f[g[l + 1]][jj] - ii : f[g[l + 1]][jj] - coor[jj];
 
@@ -389,7 +389,7 @@ inline void edt_and_sign_local_update_backward(int *d_output, char *sign_map, si
 }
 
 inline void exchange_and_update(int *output, char *sign_map, int *data_block_dims, int direction, size_t *input_stride,
-    size_t *output_stride, int *face_buffer_up_send, int *face_buffer_up_recv,
+                                size_t *output_stride, int *face_buffer_up_send, int *face_buffer_up_recv,
                                 int *face_buffer_down_send, int *face_buffer_down_recv, char *face_sign_buffer_up_send,
                                 char *face_sign_buffer_up_recv, char *face_sign_buffer_down_send,
                                 char *face_sign_buffer_down_recv, int **ff, char *local_sign_buffer, int mpi_rank,
@@ -482,11 +482,11 @@ inline void exchange_and_update(int *output, char *sign_map, int *data_block_dim
     }
 }
 
-inline void exchange_and_update(int *output, int *data_block_dims, int direction, size_t *input_stride, size_t *output_stride,
-                                int *face_buffer_up_send, int *face_buffer_up_recv, int *face_buffer_down_send,
-                                int *face_buffer_down_recv, int **ff, char *local_sign_buffer, int mpi_rank,
-                                int mpi_size, int *mpi_coords, int mpi_depth, int mpi_height, int mpi_width,
-                                int mpi_direction, int *mpi_dims, MPI_Comm &cart_comm) {
+inline void exchange_and_update(int *output, int *data_block_dims, int direction, size_t *input_stride,
+                                size_t *output_stride, int *face_buffer_up_send, int *face_buffer_up_recv,
+                                int *face_buffer_down_send, int *face_buffer_down_recv, int **ff,
+                                char *local_sign_buffer, int mpi_rank, int mpi_size, int *mpi_coords, int mpi_depth,
+                                int mpi_height, int mpi_width, int mpi_direction, int *mpi_dims, MPI_Comm &cart_comm) {
     int x_dir = (direction + 1) % 3;
     int y_dir = (direction + 2) % 3;
     size_t send_face_size = data_block_dims[x_dir] * data_block_dims[y_dir];
@@ -566,9 +566,12 @@ inline void exchange_and_update(int *output, int *data_block_dims, int direction
 template <typename T_boundary, typename T_distance, typename T_index>
 void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, char *sign_map,
                              int *data_block_dims, int *mpi_dims, int *mpi_coords, int mpi_rank, int size,
-                             MPI_Comm cart_comm, bool local_edt = false  ) {
-    std::vector<int> output_data =
-        std::vector<int>(data_block_dims[0] * data_block_dims[1] * data_block_dims[2] * 3, 0);
+                             MPI_Comm cart_comm, bool local_edt = false) {
+    size_t block_size = 1;
+    for (int i = 0; i < 3; i++) {
+        block_size *= data_block_dims[i];
+    }
+    std::vector<int> output_data = std::vector<int>(block_size * 3, 0);
     int *output = output_data.data();
     int max_dim, second_max_dim;
     {
@@ -594,13 +597,13 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
     size_t face_size = max_dim * second_max_dim;
     int *face_buffer_up_send;
     int *face_buffer_up_recv;
-    int *face_buffer_down_send ;
-    int *face_buffer_down_recv ;
+    int *face_buffer_down_send;
+    int *face_buffer_down_recv;
     char *face_sign_buffer_up_send;
-    char *face_sign_buffer_up_recv ;
-    char *face_sign_buffer_down_send ;
-    char *face_sign_buffer_down_recv ;
-    if(local_edt == false){
+    char *face_sign_buffer_up_recv;
+    char *face_sign_buffer_down_send;
+    char *face_sign_buffer_down_recv;
+    if (local_edt == false) {
         face_buffer_up_send = (int *)malloc(sizeof(int) * face_size * 3);
         face_buffer_up_recv = (int *)malloc(sizeof(int) * face_size * 3);
         face_buffer_down_send = (int *)malloc(sizeof(int) * face_size * 3);
@@ -617,8 +620,8 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
     direction = 0;
     int x_dir = (direction + 1) % 3;
     int y_dir = (direction + 2) % 3;
-    edt_init_mpi(boundary, output, 1, data_block_dims[2], data_block_dims[1], data_block_dims[0], mpi_coords);
 
+    edt_init_mpi(boundary, output, 1, data_block_dims[2], data_block_dims[1], data_block_dims[0], mpi_coords);
 
     if (1) {
         for (int i = 0; i < data_block_dims[x_dir]; i++)  // y
@@ -632,9 +635,8 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
                                             data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        MPI_Barrier(cart_comm);
-
         if (local_edt == false) {
+            MPI_Barrier(cart_comm);
             exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
                                 face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
                                 face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
@@ -661,8 +663,9 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
                                             data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        MPI_Barrier(cart_comm);
+
         if (local_edt == false) {
+            MPI_Barrier(cart_comm);
             exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
                                 face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
                                 face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
@@ -689,9 +692,9 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
                                             data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        MPI_Barrier(cart_comm);
         // printf("rank %d finished dim 2\n", mpi_rank);
         if (local_edt == false) {
+            MPI_Barrier(cart_comm);
             exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
                                 face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
                                 face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
@@ -709,7 +712,7 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
     free(f);
     free(ff);
     free(local_sign_buffer);
-    if(local_edt == false){
+    if (local_edt == false) {
         free(face_buffer_up_send);
         free(face_buffer_up_recv);
         free(face_buffer_down_send);
@@ -723,9 +726,13 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
 
 template <typename T_boundary, typename T_distance, typename T_index>
 void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, int *data_block_dims, int *mpi_dims,
-                int *mpi_coords, int mpi_rank, int size, MPI_Comm cart_comm,bool local_edt = false  ) {
+                int *mpi_coords, int mpi_rank, int size, MPI_Comm cart_comm, bool local_edt = false) {
+    size_t block_size = 1;
+    for (int i = 0; i < 3; i++) {
+        block_size *= data_block_dims[i];
+    }
     std::vector<int> output_data =
-        std::vector<int>(data_block_dims[0] * data_block_dims[1] * data_block_dims[2] * 3, 0);
+        std::vector<int>(block_size * 3, 0);
     int *output = output_data.data();
     int max_dim, second_max_dim;
     {
@@ -749,20 +756,19 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
         ff[i] = f + i * 3;
     }
     size_t face_size = max_dim * second_max_dim;
-    int *face_buffer_up_send ;
-    int *face_buffer_up_recv ;
-    int *face_buffer_down_send ;
+    int *face_buffer_up_send;
+    int *face_buffer_up_recv;
+    int *face_buffer_down_send;
     int *face_buffer_down_recv;
 
-    if(local_edt == false){
+    if (local_edt == false) {
         face_buffer_up_send = (int *)malloc(sizeof(int) * face_size * 3);
         face_buffer_up_recv = (int *)malloc(sizeof(int) * face_size * 3);
         face_buffer_down_send = (int *)malloc(sizeof(int) * face_size * 3);
         face_buffer_down_recv = (int *)malloc(sizeof(int) * face_size * 3);
     }
 
-
-    size_t  input_stride[3] = {(size_t) data_block_dims[2] * data_block_dims[1], (size_t)data_block_dims[2], 1};
+    size_t input_stride[3] = {(size_t)data_block_dims[2] * data_block_dims[1], (size_t)data_block_dims[2], 1};
     size_t output_stride[3] = {(size_t)3 * input_stride[0], (size_t)3 * input_stride[1], (size_t)3 * input_stride[2]};
     int direction;
     direction = 0;
@@ -780,8 +786,8 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
                                    data_block_dims[1], data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        MPI_Barrier(cart_comm);
         if (local_edt == false) {
+            MPI_Barrier(cart_comm);
             exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
                                 face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
                                 local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
@@ -806,8 +812,8 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
                                    data_block_dims[1], data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        MPI_Barrier(cart_comm);
         if (local_edt == false) {
+            MPI_Barrier(cart_comm);
             exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
                                 face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
                                 local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
@@ -832,9 +838,9 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
                                    data_block_dims[1], data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        MPI_Barrier(cart_comm);
         // printf("rank %d finished dim 2\n", mpi_rank);
-        if (local_edt == false) { 
+        if (local_edt == false) {
+            MPI_Barrier(cart_comm);
             exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
                                 face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
                                 local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
@@ -852,12 +858,11 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
     free(ff);
     free(local_sign_buffer);
 
-    if(local_edt == false){
+    if (local_edt == false) {
         free(face_buffer_up_send);
         free(face_buffer_up_recv);
         free(face_buffer_down_send);
         free(face_buffer_down_recv);
-
     }
 }
 

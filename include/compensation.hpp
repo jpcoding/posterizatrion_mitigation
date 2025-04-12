@@ -479,16 +479,15 @@ class Compensation {
         timer.start();
         auto edt_omp = PM2::EDT_OMP<T_data, int>();
         edt_omp.set_num_threads(edt_thread_num);
-        auto edt_result = edt_omp.NI_EuclideanFeatureTransform(boundary_map.data(), N, dims.data(), edt_thread_num);
+        auto edt_result = edt_omp.NI_EuclideanFeatureTransform(boundary_map.data(), N, dims.data(), edt_thread_num)
+        ;
         // auto edt_result = NI_EuclideanFeatureTransform<double, int>(boundary_map.data(), N, dims.data());
-        // std::cout << "edt total time = " << timer.stop() << std::endl;
         auto distance_array = std::move(edt_result.distance);
         auto indexes = std::move(edt_result.indexes);
 
 
         // print edt time
         // printf("edt time = %.10f \n", edt_omp.get_edt_time());
-        // std::cout << "distance time = " << edt_omp.get_distance_time() << std::endl;
 
         // writefile("distance.f64", distance_array.data(), distance_array.size());
         // writefile("sign.int8", sign_map.data(), input_size);
@@ -500,13 +499,14 @@ class Compensation {
                 sign_map[i] = sign_map[indexes[i]];
             }
         }
-        writefile("sign.int8", sign_map.data(), input_size);
+        // writefile("sign.int8", sign_map.data(), input_size);
+
 
 
         // dump the sign map
 
         // get the second boundry map
-        auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data());
+        auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data(), edt_thread_num);
 
         #pragma omp parallel for num_threads(edt_thread_num)
         for (int i = 0; i < input_size; i++) {

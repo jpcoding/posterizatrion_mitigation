@@ -164,10 +164,16 @@ int main(int argc, char** argv) {
     std::vector<size_t> index(num_elements, 0);
     std::vector<float> distance(num_elements, 0.0);
 
+    auto timer2 = Timer();
+    timer2.start();
+
+    
     if (1) {
         edt_3d_and_sign_map_opt(boundary.data(), distance.data(), index.data(), sign_map.data(), data_block_dims.data(),
                                 dims, coords, mpi_rank, size, cart_comm, local_edt);
     }
+    std::cout << "edt time = " << timer2.stop() << std::endl; 
+    
     // printf("first edt done  \n");
     if (debug) {
         writefile("distance_mpi.bin", distance.data(), block_size);

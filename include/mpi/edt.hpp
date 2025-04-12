@@ -661,8 +661,9 @@ void edt_and_sign_core_mpi_partial(int *d_output, char *sign_map, size_t stride,
 template <typename T_boundary, typename T_distance, typename T_index>
 void edt_3d(T_boundary *boundary, T_distance *distance, T_index *index, int *data_block_dims, int *mpi_dims,
             int *mpi_coords, int mpi_rank, int size, MPI_Comm cart_comm) {
+    size_t block_size = (size_t) data_block_dims[0] * (size_t) data_block_dims[1] * (size_t) data_block_dims[2];
     std::vector<int> output_data =
-        std::vector<int>(data_block_dims[0] * data_block_dims[1] * data_block_dims[2] * 3, 0);
+        std::vector<int>(block_size * 3, 0);
 
     // make output data as a smart pointer
 
@@ -683,8 +684,8 @@ void edt_3d(T_boundary *boundary, T_distance *distance, T_index *index, int *dat
     int* f_send_buffer = (int *)malloc(sizeof(int) * max_dim * 3 * max_mpi_dim);
 
 
-    size_t input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
-    size_t output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
+    size_t input_stride[3] = {(size_t)data_block_dims[2] * data_block_dims[1], (size_t)data_block_dims[2], (size_t)1};
+    size_t output_stride[3] = {(size_t)3 * input_stride[0], (size_t)3 * input_stride[1], (size_t)3 * input_stride[2]};
 
     int global_dims[3] = {data_block_dims[0] * mpi_dims[0], data_block_dims[1] * mpi_dims[1],
                           data_block_dims[2] * mpi_dims[2]};
@@ -783,8 +784,10 @@ template <typename T_boundary, typename T_distance, typename T_index>
 void edt_3d_and_sign_map(T_boundary *boundary, T_distance *distance, T_index *indexes, char *sign_map,
                          int *data_block_dims, int *mpi_dims, int *mpi_coords, int mpi_rank, int size,
                          MPI_Comm cart_comm) {
+    size_t block_size = (size_t) data_block_dims[0] * (size_t) data_block_dims[1] * (size_t) data_block_dims[2];
+
     std::vector<int> output_data =
-        std::vector<int>(data_block_dims[0] * data_block_dims[1] * data_block_dims[2] * 3, 0);
+        std::vector<int>(block_size * 3, 0);
 
     int *output = output_data.data();
     // edt_init_mpi(boundary, output, 1, data_block_dims[2],
@@ -808,8 +811,8 @@ void edt_3d_and_sign_map(T_boundary *boundary, T_distance *distance, T_index *in
         ff[i] = f + i * 3;
     }
 
-    size_t input_stride[3] = {data_block_dims[2] * data_block_dims[1], data_block_dims[2], 1};
-    size_t output_stride[3] = {3 * input_stride[0], 3 * input_stride[1], 3 * input_stride[2]};
+    size_t input_stride[3] = {(size_t)data_block_dims[2] * data_block_dims[1], (size_t)data_block_dims[2], 1};
+    size_t output_stride[3] = {(size_t)3 * input_stride[0], (size_t)3 * input_stride[1], (size_t)3 * input_stride[2]};
 
     int direction;
     // dim 0
