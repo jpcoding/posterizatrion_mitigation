@@ -56,6 +56,12 @@ mpirun -n 8 ./test_mpi/test_compensation_parallel --mpidims 2 2 2 --rel_eb 0.001
     --prefix vx --q_sufix q.32 --c_sufix c.32 --origdims 256 384 384 \
     --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_2x2x2/
 
+
+mpirun -n 8 ./test_mpi/test_compensation_parallel --mpidims 2 2 2 -m rel -e 0.001 \
+    --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_2x2x2/ \
+    --prefix vx --q_suffix q.32 --c_suffix c.32 --origdims 256 384 384 \
+    --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_2x2x2/
+
 mpirun -n 64 ./test_mpi/test_boundary_mpi --mpidims 4 4 4  --rel_eb 0.001 \
     --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
     --prefix vx --origdims 256 384 384 \
@@ -66,6 +72,11 @@ mpirun -n 8 ./test_mpi/test_boundary_mpi --mpidims 2 2 2   --rel_eb 0.001 \
     --prefix vx --origdims 256 384 384 \
     --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_2x2x2/
 
+
+mpirun -n 64 ./test_mpi/test_boundary_mpi --mpidims 4 4 4  -m rel -e 0.001  \
+    --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
+    --prefix vx --origdims 256 384 384 \
+    --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/
 
 #1 
 mpirun -n 64 ./test_mpi/test_compensation_parallel --mpidims 4 4 4  --rel_eb 0.001 \
@@ -89,10 +100,16 @@ mpirun -n 64  ./test_mpi/test_merge_file  --mpidims 4 4 4 \
 
 
 mpirun -n 64 ./test_mpi/test_compensation_opt --mpidims 4 4 4  \
-     --rel_eb 0.001     --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/   \
+     -m abs -e 0.004511498   --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/   \
       --prefix vx --origdims 256 384 384     \
     --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
     --local_edt 1 --local_quant 0 
+mpirun -n 64 ./test_mpi/test_compensation_opt --mpidims 4 4 4  \
+     -m rel  -e 0.001   --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/   \
+      --prefix vx --origdims 256 384 384     \
+    --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_4x4x4/ \
+    --local_edt 1 --local_quant 0 
+
 
 mpirun -n 8 ./test_mpi/test_compensation_opt --mpidims 2 2 2  \
      --rel_eb 0.001     --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_2x2x2   \

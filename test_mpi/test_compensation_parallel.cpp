@@ -31,17 +31,18 @@ int main(int argc, char** argv) {
     std::array<int, 3> dims_array = {0, 0, 0};  // Let MPI decide the best grid dimensions
     std::array<int, 3> orig_dims_array = {0, 0, 0};
 
-    double rel_eb = 0.0;
     std::string dir_prefix;   // Directory prefix for the blocks
     std::string name_prefix;  // Name prefix for the blocks
     std::string out_dir;
     bool use_rbf = false;
     std::string quantized_file_sufix;
     std::string compensated_file_sufix;
-
+    std::string eb_mode;
+    double eb;
     CLI::App app{"Merge files using MPI - 3D"};
     argv = app.ensure_utf8(argv);
-    app.add_option("--rel_eb", rel_eb, "Relative error bound")->required();
+    app.add_option("-e", eb, "Error bound")->required();
+    app.add_option("-m", eb_mode, "Error bound mode")->required();
     app.add_option("--mpidims", dims_array, "mpi dimensions")->required();
     app.add_option("--dir", dir_prefix, "input file")->required();
     app.add_option("--prefix", name_prefix, "output file")->required();
@@ -85,48 +86,49 @@ int main(int argc, char** argv) {
         return 1;
     }
     int block_dims[3] = {orig_dims[0] / dims[0], orig_dims[1] / dims[1], orig_dims[2] / dims[2]};
-    size_t block_size = (size_t) block_dims[0] * block_dims[1] * block_dims[2];
+    size_t block_size = (size_t)block_dims[0] * block_dims[1] * block_dims[2];
     size_t block_strides[3] = {(size_t)block_dims[1] * block_dims[2], (size_t)block_dims[2], 1};
     // assert(num_elements == block_size);
     // printf("Rank %d, num_elements: %ld\n", mpi_rank, num_elements);
 
     // get the global max and min to get the gloibal value range
-    float local_max = *std::max_element(data.get(), data.get() + num_elements);
-    float local_min = *std::min_element(data.get(), data.get() + num_elements);
-    float global_max, global_min;
-
+    double abs_eb;
     bool operation = true;
-    double local_range = local_max - local_min;
-    if (local_range < 1e-10) {
-        operation = false;
+    if (eb_mode == "rel") {
+        float local_max = *std::max_element(data.get(), data.get() + num_elements);
+        float local_min = *std::min_element(data.get(), data.get() + num_elements);
+        float global_max, global_min;
+
+        double local_range = local_max - local_min;
+        if (local_range < 1e-10) {
+            operation = false;
+        }
+        // barrier
+        if (1) {
+            MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
+            MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
+            MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
+            MPI_Bcast(&global_min, 1, MPI_FLOAT, 0, cart_comm);
+        }
+        abs_eb = eb * (global_max - global_min);
+    } else {
+        abs_eb = eb;
     }
-    // barrier
-    MPI_Barrier(cart_comm);
-    double time = MPI_Wtime();  // Start the timer
-    if (1) {
-        MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
-        MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
-        MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
-        MPI_Bcast(&global_min, 1, MPI_FLOAT, 0, cart_comm);
-    }
-    double abs_eb = rel_eb * (global_max - global_min);
     double compensation_magnitude = abs_eb * 0.9;
+
     // printf("Rank %d, block_size: %d\n", mpi_rank, block_size);
     auto quantizer = SZ::LinearQuantizer<float>();
     quantizer.set_eb(abs_eb);
     std::vector<int> quant_inds(block_size, 0);
     size_t local_zero_count = 0;
+    double time = MPI_Wtime();  // Start the timer
     if (1) {
         for (int i = 0; i < block_size; i++) {
             quant_inds[i] = quantizer.quantize_and_overwrite(data[i], 0) - 32768;
             if (quant_inds[i] == 0) local_zero_count++;
         }
     }
-
-
     MPI_Barrier(cart_comm);
-
-
     time = MPI_Wtime() - time;
     size_t global_zero_count = 0;
     size_t global_size = 1;
@@ -148,13 +150,13 @@ int main(int argc, char** argv) {
     }
     {
         char out_filename[100];
-        sprintf(out_filename, "%s/%s_%d_%d_%d%s", out_dir.c_str(), name_prefix.c_str(), coords[0], coords[1],
-                coords[2],quantized_file_sufix.c_str());
+        sprintf(out_filename, "%s/%s_%d_%d_%d%s", out_dir.c_str(), name_prefix.c_str(), coords[0], coords[1], coords[2],
+                quantized_file_sufix.c_str());
         writefile<float>(out_filename, data.get(), block_size);
     }
 
     // embrassinly parallel compensation
-    // barrier 
+    // barrier
     MPI_Barrier(cart_comm);
     double c_time = MPI_Wtime();  // Start the timer
     if (operation) {
@@ -170,7 +172,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    //barrier
+    // barrier
     MPI_Barrier(cart_comm);
     c_time = MPI_Wtime() - c_time;
 
@@ -188,8 +190,8 @@ int main(int argc, char** argv) {
     // // printf("Rank %d, wrote quantized data to %s\n", mpi_rank, out_filename);
     {
         char out_filename[100];
-        sprintf(out_filename, "%s/%s_%d_%d_%d%s", out_dir.c_str(), name_prefix.c_str(), coords[0], coords[1],
-                coords[2],compensated_file_sufix.c_str());
+        sprintf(out_filename, "%s/%s_%d_%d_%d%s", out_dir.c_str(), name_prefix.c_str(), coords[0], coords[1], coords[2],
+                compensated_file_sufix.c_str());
         writefile<float>(out_filename, data.get(), block_size);
     }
 
@@ -212,7 +214,7 @@ int main(int argc, char** argv) {
 
     // printf("Rank %d, wrote decomp data to %s\n", mpi_rank, out_filename);
     if (mpi_rank == 0) {
-        printf("Global max: %f, Global min: %f, abs_eb = %f \n", global_max, global_min, abs_eb);
+        printf("abs_eb = %f \n", abs_eb);
         printf("Rank %d, time: %f\n", mpi_rank, c_time);
     }
 

@@ -1,8 +1,9 @@
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
-#include <algorithm>
 #include <vector>
+
 #include "CLI/CLI.hpp"
 #include "SZ3/quantizer/IntegerQuantizer.hpp"
 #include "compensation.hpp"
@@ -12,7 +13,6 @@
 
 using Real = float;
 namespace SZ = SZ3;
-
 
 int main(int argc, char **argv) {
     CLI::App app{"OMP version of compensation using EDT method"};
@@ -26,6 +26,7 @@ int main(int argc, char **argv) {
     std::string quantized_file;
     std::string compensation_file;
     bool use_rbf;
+    bool no_ssim = false;
     app.add_option("-N", N, "number of dimensions")->required();
     dims.resize(N, 0);
     app.add_option("-d", dims, "dimensions")->required();
@@ -36,7 +37,7 @@ int main(int argc, char **argv) {
     app.add_option("-c", compensation_file, "compensation file")->required();
     app.add_option("-t", num_threads, "number of threads")->default_val(1)->check(CLI::Range(1, 256));
     app.add_option("--use_rbf", use_rbf, "use rbf")->default_val(false);
-
+    app.add_option("--no_ssim", no_ssim, "do not calculate ssim")->default_val(false);
     CLI11_PARSE(app, argc, argv);
 
     size_t data_size = 1;
@@ -99,12 +100,15 @@ int main(int argc, char **argv) {
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
 
     // cast dims to size_t
-    std::vector<size_t> dims_(3);
-    for (int i = 0; i < N; i++) {
-        dims_[i] = dims[i];
+
+    if (no_ssim == false) {
+        std::vector<size_t> dims_(3);
+        for (int i = 0; i < N; i++) {
+            dims_[i] = dims[i];
+        }
+        auto ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
+        printf("SSIM = %f\n", ssim);
     }
-    auto ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
-    printf("SSIM = %f\n", ssim);
 
     // compensation using edt method
 
@@ -141,8 +145,14 @@ int main(int argc, char **argv) {
     std::cout << "compensation time = " << timer.stop() << std::endl;
     // verify the compensated data
     verify(original_data.data(), dec_data.data(), data_size, psnr, nrmse, max_diff);
-    ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
-    printf("SSIM = %f\n", ssim);
+    if (no_ssim == false) {
+        std::vector<size_t> dims_(3);
+        for (int i = 0; i < N; i++) {
+            dims_[i] = dims[i];
+        }
+        auto ssim = PM::calculateSSIM(original_data.data(), dec_data.data(), N, dims_.data());
+        printf("SSIM = %f\n", ssim);
+    }
     // write the compensation map to file
     writefile(compensation_file.c_str(), dec_data.data(), data_size);
     return 0;

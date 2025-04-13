@@ -574,7 +574,6 @@ class Compensation {
                     double distance1 = distance_array[i] + 0.5;
                     double distance2 = distance_array2[i] + 0.5;
                     char sign = sign_map[i];
-                    double width = distance2 + distance1;
                     double magnitude = (1 / distance1) / (1 / distance1 + 1 / distance2);
                     compensation_map[i] = sign * magnitude * comepnsation_value;
                 }

@@ -30,7 +30,8 @@ int main(int argc, char** argv) {
     std::array<int, 3> dims_array = {0, 0, 0};  // Let MPI decide the best grid dimensions
     std::array<int, 3> orig_dims_array = {0, 0, 0};
 
-    double rel_eb = 0.0; 
+    double eb = 0.0; 
+    std::string eb_mode = "rel";  // Relative error bound mode 
     std::string dir_prefix;   // Directory prefix for the blocks
     std::string name_prefix;  // Name prefix for the blocks
     std::string out_dir; 
@@ -38,7 +39,8 @@ int main(int argc, char** argv) {
 
     CLI::App app{"Merge files using MPI - 3D"};
     argv = app.ensure_utf8(argv);
-    app.add_option("--rel_eb", rel_eb, "Relative error bound")->required();
+    app.add_option("-e", eb, "Relative error bound")->required();
+    app.add_option("-m", eb_mode, "Relative error bound mode")->required();
     app.add_option("--mpidims", dims_array, "mpi dimensions")->required();
     app.add_option("--dir", dir_prefix, "input file")->required();
     app.add_option("--prefix", name_prefix, "output file")->required();
@@ -103,35 +105,42 @@ int main(int argc, char** argv) {
     float global_max, global_min;
 
     bool operation = true;
-    double local_range = local_max - local_min;
-    if (local_range < 1e-10) {
-        operation = false;
+    double abs_eb;
+    if (eb_mode == "rel") {
+        float local_max = *std::max_element(data.get(), data.get() + num_elements);
+        float local_min = *std::min_element(data.get(), data.get() + num_elements);
+        float global_max, global_min;
+
+        double local_range = local_max - local_min;
+        if (local_range < 1e-10) {
+            operation = false;
+        }
+        // barrier
+        if (1) {
+            MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
+            MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
+            MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
+            MPI_Bcast(&global_min, 1, MPI_FLOAT, 0, cart_comm);
+        }
+        abs_eb = eb * (global_max - global_min);
+    } else {
+        abs_eb = eb;
     }
-    // barrier
-    MPI_Barrier(cart_comm);
-    double time = MPI_Wtime();  // Start the timer
-    if (1) {
-        MPI_Reduce(&local_max, &global_max, 1, MPI_FLOAT, MPI_MAX, 0, cart_comm);
-        MPI_Reduce(&local_min, &global_min, 1, MPI_FLOAT, MPI_MIN, 0, cart_comm);
-        MPI_Bcast(&global_max, 1, MPI_FLOAT, 0, cart_comm);
-        MPI_Bcast(&global_min, 1, MPI_FLOAT, 0, cart_comm);
-    }
-    double abs_eb = rel_eb * (global_max - global_min);
     double compensation_magnitude = abs_eb * 0.9;
     // printf("Rank %d, block_size: %d\n", mpi_rank, block_size);
     auto quantizer = SZ::LinearQuantizer<float>();
     quantizer.set_eb(abs_eb);
     std::vector<int> quant_inds(block_size, 0);
     size_t local_zero_count = 0;
+    MPI_Barrier(cart_comm);
+    double time = MPI_Wtime();
     if (1) {
         for (int i = 0; i < block_size; i++) {
             quant_inds[i] = quantizer.quantize_and_overwrite(data[i], 0) - 32768;
             if (quant_inds[i] == 0) local_zero_count++;
         }
     }
-
     MPI_Barrier(cart_comm);
-
     time = MPI_Wtime() - time;
     size_t global_zero_count = 0;
     size_t global_size = 1;
@@ -145,6 +154,10 @@ int main(int argc, char** argv) {
         printf("zero count = %ld \n", local_zero_count);
         printf("global size = %ld \n", global_size);
         printf("global zero ratio = %f \n", static_cast<double>(global_zero_count) / static_cast<double>(global_size));
+        printf("eb mode = %s \n", eb_mode.c_str());
+        printf("input eb = %f \n", eb);
+        printf("abs eb = %f \n", abs_eb);
+
     }
     double orig_psnr = -1;
     if (1) orig_psnr = get_psnr_mpi(orig_copy.data(), data.get(), num_elements, cart_comm);
