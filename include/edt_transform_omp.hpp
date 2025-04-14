@@ -251,7 +251,6 @@ class EDT_OMP {
 
     void ComputeFT2D3D_single(char *pi, int *pf, int *ishape, const size_t *istrides, const size_t *fstrides,
                        int rank) {
-        std::vector<int> coor(rank, 0);
         if (rank == 2) {
             int max_dim = std::max(ishape[0], ishape[1]);
             std::vector<int> local_f(max_dim * 2);
@@ -287,10 +286,9 @@ class EDT_OMP {
         } else if (rank == 3) {
             int max_dim = std::max(ishape[0], std::max(ishape[1], ishape[2]));
             // use malloc to allocate the memory
-            int num_threads = 1; 
-            int *local_f = (int *)malloc(num_threads * max_dim * 3 * sizeof(int));
-            int *local_g = (int *)malloc(num_threads * max_dim * sizeof(int));
-            int **local_f_ptrs = (int **)malloc(num_threads * max_dim * sizeof(int *));
+            int *local_f = (int *)malloc( max_dim * 3 * sizeof(int));
+            int *local_g = (int *)malloc( max_dim * sizeof(int));
+            int **local_f_ptrs = (int **)malloc( max_dim * sizeof(int *));
             int coor_local[3] = {0, 0, 0}; 
             for (int j = 0; j < max_dim; j++) {
                 local_f_ptrs[j] = local_f + j * 3;
@@ -568,7 +566,7 @@ class EDT_OMP {
     // do not use. the performance is terrible becase of the vector memory allocation
     std::tuple<std::vector<T_distance>, std::vector<size_t>> NI_EuclideanFeatureTransform_(char *input, int N,
                                                                                            int *dims,
-                                                                                           int num_threads = 64) {
+                                                                                           int num_threads = 1) {
         global_timer.start();
         char *pi;
         int *pf;
@@ -607,7 +605,7 @@ class EDT_OMP {
         return result;
     }
 
-    Distance_and_Index NI_EuclideanFeatureTransform(char *input, int N, int *dims, int num_threads = 64) {
+    Distance_and_Index NI_EuclideanFeatureTransform(char *input, int N, int *dims, int num_threads = 1) {
         char *pi;
         int *pf;
         size_t input_size = 1;

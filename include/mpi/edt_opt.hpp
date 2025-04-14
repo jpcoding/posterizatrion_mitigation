@@ -587,7 +587,7 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
                           data_block_dims[2] * mpi_dims[2]};
 
     // local data buffer to store the line
-    int *g = (int *)malloc(sizeof(int) * max_dim * max_mpi_dim);
+    int *g = (int *)malloc(sizeof(int) * max_dim);
     char *local_sign_buffer = (char *)malloc(sizeof(char) * max_dim);
     int *f = (int *)malloc(sizeof(int) * max_dim * 3);
     int **ff = (int **)malloc(sizeof(int *) * max_dim);
@@ -635,16 +635,16 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
                                             data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        if (local_edt == false) {
-            MPI_Barrier(cart_comm);
-            exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
-                                face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
-                                face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
-                                face_sign_buffer_down_recv, ff, local_sign_buffer, mpi_rank, size, mpi_coords,
-                                data_block_dims[0], data_block_dims[1], data_block_dims[2], direction, mpi_dims,
-                                cart_comm);
-            MPI_Barrier(cart_comm);
-        }
+        // if (local_edt == false) {
+        //     MPI_Barrier(cart_comm);
+        //     exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
+        //                         face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
+        //                         face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
+        //                         face_sign_buffer_down_recv, ff, local_sign_buffer, mpi_rank, size, mpi_coords,
+        //                         data_block_dims[0], data_block_dims[1], data_block_dims[2], direction, mpi_dims,
+        //                         cart_comm);
+        //     MPI_Barrier(cart_comm);
+        // }
     }
 
     // dim1
@@ -664,16 +664,16 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
             }
         }
 
-        if (local_edt == false) {
-            MPI_Barrier(cart_comm);
-            exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
-                                face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
-                                face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
-                                face_sign_buffer_down_recv, ff, local_sign_buffer, mpi_rank, size, mpi_coords,
-                                data_block_dims[0], data_block_dims[1], data_block_dims[2], direction, mpi_dims,
-                                cart_comm);
-            MPI_Barrier(cart_comm);
-        }
+        // if (local_edt == false) {
+        //     MPI_Barrier(cart_comm);
+        //     exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
+        //                         face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
+        //                         face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
+        //                         face_sign_buffer_down_recv, ff, local_sign_buffer, mpi_rank, size, mpi_coords,
+        //                         data_block_dims[0], data_block_dims[1], data_block_dims[2], direction, mpi_dims,
+        //                         cart_comm);
+        //     MPI_Barrier(cart_comm);
+        // }
     }
 
     // dim 2
@@ -693,15 +693,15 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
             }
         }
         // printf("rank %d finished dim 2\n", mpi_rank);
-        if (local_edt == false) {
-            MPI_Barrier(cart_comm);
-            exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
-                                face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
-                                face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
-                                face_sign_buffer_down_recv, ff, local_sign_buffer, mpi_rank, size, mpi_coords,
-                                data_block_dims[0], data_block_dims[1], data_block_dims[2], direction, mpi_dims,
-                                cart_comm);
-        }
+        // if (local_edt == false) {
+        //     MPI_Barrier(cart_comm);
+        //     exchange_and_update(output, sign_map, data_block_dims, direction, input_stride, output_stride,
+        //                         face_buffer_up_send, face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv,
+        //                         face_sign_buffer_up_send, face_sign_buffer_up_recv, face_sign_buffer_down_send,
+        //                         face_sign_buffer_down_recv, ff, local_sign_buffer, mpi_rank, size, mpi_coords,
+        //                         data_block_dims[0], data_block_dims[1], data_block_dims[2], direction, mpi_dims,
+        //                         cart_comm);
+        // }
     }
 
     // calculate distance
@@ -726,7 +726,7 @@ void edt_3d_and_sign_map_opt(T_boundary *boundary, T_distance *distance, T_index
 
 template <typename T_boundary, typename T_distance, typename T_index>
 void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, int *data_block_dims, int *mpi_dims,
-                int *mpi_coords, int mpi_rank, int size, MPI_Comm cart_comm, bool local_edt = false) {
+                int *mpi_coords, int mpi_rank, int size, MPI_Comm cart_comm, bool local_edt = 1) {
     size_t block_size = 1;
     for (int i = 0; i < 3; i++) {
         block_size *= data_block_dims[i];
@@ -748,7 +748,7 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
                           data_block_dims[2] * mpi_dims[2]};
 
     // local data buffer to store the line
-    int *g = (int *)malloc(sizeof(int) * max_dim * max_mpi_dim);
+    int *g = (int *)malloc(sizeof(int) * max_dim );
     char *local_sign_buffer = (char *)malloc(sizeof(char) * max_dim);
     int *f = (int *)malloc(sizeof(int) * max_dim * 3);
     int **ff = (int **)malloc(sizeof(int *) * max_dim);
@@ -786,15 +786,15 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
                                    data_block_dims[1], data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        if (local_edt == false) {
-            MPI_Barrier(cart_comm);
-            exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
-                                face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
-                                local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
-                                data_block_dims[2], direction, mpi_dims, cart_comm);
+        // if (local_edt == false) {
+        //     MPI_Barrier(cart_comm);
+        //     exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
+        //                         face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
+        //                         local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
+        //                         data_block_dims[2], direction, mpi_dims, cart_comm);
 
-            MPI_Barrier(cart_comm);
-        }
+        //     MPI_Barrier(cart_comm);
+        // }
     }
 
     // dim1
@@ -812,15 +812,15 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
                                    data_block_dims[1], data_block_dims[2], direction, mpi_dims, cart_comm);
             }
         }
-        if (local_edt == false) {
-            MPI_Barrier(cart_comm);
-            exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
-                                face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
-                                local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
-                                data_block_dims[2], direction, mpi_dims, cart_comm);
+        // if (local_edt == false) {
+        //     MPI_Barrier(cart_comm);
+        //     exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
+        //                         face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
+        //                         local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
+        //                         data_block_dims[2], direction, mpi_dims, cart_comm);
 
-            MPI_Barrier(cart_comm);
-        }
+        //     MPI_Barrier(cart_comm);
+        // }
     }
 
     // dim 2
@@ -839,14 +839,14 @@ void edt_3d_opt(T_boundary *boundary, T_distance *distance, T_index *indexes, in
             }
         }
         // printf("rank %d finished dim 2\n", mpi_rank);
-        if (local_edt == false) {
-            MPI_Barrier(cart_comm);
-            exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
-                                face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
-                                local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
-                                data_block_dims[2], direction, mpi_dims, cart_comm);
-            MPI_Barrier(cart_comm);
-        }
+        // if (local_edt == false) {
+        //     MPI_Barrier(cart_comm);
+        //     exchange_and_update(output, data_block_dims, direction, input_stride, output_stride, face_buffer_up_send,
+        //                         face_buffer_up_recv, face_buffer_down_send, face_buffer_down_recv, ff,
+        //                         local_sign_buffer, mpi_rank, size, mpi_coords, data_block_dims[0], data_block_dims[1],
+        //                         data_block_dims[2], direction, mpi_dims, cart_comm);
+        //     MPI_Barrier(cart_comm);
+        // }
     }
 
     // calculate distance

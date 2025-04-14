@@ -220,8 +220,8 @@ int main(int argc, char** argv) {
     // edt to get the distance map and the indexes
 
     int depth_dim = orig_dims[0] / dims[0];
-    int height_dim = orig_dims[1] / dims[0];
-    int width_dim = orig_dims[2] / dims[0];
+    int height_dim = orig_dims[1] / dims[1];
+    int width_dim = orig_dims[2] / dims[2];
     std::array<int, 3> data_block_dims = {0, 0, 0};
     data_block_dims[0] = depth_dim;
     data_block_dims[1] = height_dim;
