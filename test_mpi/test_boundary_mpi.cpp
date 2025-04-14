@@ -114,6 +114,7 @@ int main(int argc, char** argv) {
         double local_range = local_max - local_min;
         if (local_range < 1e-10) {
             operation = false;
+            printf("Rank %d, local range is too small: %f\n", mpi_rank, local_range); 
         }
         // barrier
         if (1) {

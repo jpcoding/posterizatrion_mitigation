@@ -99,9 +99,6 @@ int main(int argc, char** argv) {
             MPI_File_write(fh, data.get(), block_size, MPI_FLOAT, MPI_STATUS_IGNORE);
             MPI_Type_free(&subarray);
         }
-        if(mpi_rank == 0) {
-            printf("Rank %d wrote block (%d, %d, %d)\n", mpi_rank, coords[0], coords[1], coords[2]);
-        }
     }
     MPI_File_close(&fh);
     MPI_Barrier(MPI_COMM_WORLD);    

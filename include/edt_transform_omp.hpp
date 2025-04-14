@@ -379,7 +379,6 @@ class EDT_OMP {
         std::vector<size_t> indexes;
         indexes.resize(size);
 
-        printf("allocate distance time = %f\n", global_timer.stop());
         double dist = 0;
         size_t global_idx = 0;
         T_int x, y, z;
@@ -598,8 +597,12 @@ class EDT_OMP {
         }
         // printf("aux time = %f \n", global_timer.stop());
         global_timer.start();
-        ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N);
-        edt_time = global_timer.stop();
+        if(num_threads== 1 ) {
+            ComputeFT2D3D_single(pi, pf, dims, strides.data(), index_strides.data(), N);
+        }
+        else {
+            ComputeFT2D3D(pi, pf, dims, strides.data(), index_strides.data(), N);
+        }        edt_time = global_timer.stop();
         auto result = calculate_distance_and_index(features, index_strides.data(), N, dims);
         free(features);
         return result;
