@@ -66,7 +66,7 @@ void calculate_distance_and_index(int *output, T *distance, T_index *indexes, in
     int global_z = mpi_coords[0] * depth;
     int global_y = mpi_coords[1] * height;
     int global_x = mpi_coords[2] * width;
-    int global_strides[3] = {global_width * global_height, global_width, 1};
+    size_t  global_strides[3] = {(size_t)global_width * global_height, (size_t)global_width, 1};
     for (size_t i = 0; i < block_size; i++) {
         int z = i / (width * height);
         int y = (i % (width * height)) / width;
@@ -140,8 +140,8 @@ inline void edt_core_mpi(int *d_output,  size_t stride, uint rank, uint d, uint 
 
     for (ii = 0; ii < len; ii++) {
         if (f[ii][0] >= 0) {
-            int fd = f[ii][d];
-            int wR = 0.0;
+            double fd = f[ii][d];
+            double wR = 0.0;
             for (jj = 0; jj < rank; jj++) {
                 if (jj != d) {
                     int tw = (f[ii][jj] - coor[jj]);
@@ -149,7 +149,7 @@ inline void edt_core_mpi(int *d_output,  size_t stride, uint rank, uint d, uint 
                 }
             }
             while (l >= 1) {
-                int a, b, c, uR = 0.0, vR = 0.0, f1;
+                double a, b, c, uR = 0.0, vR = 0.0, f1;
                 idx1 = l;
                 idx2 = l - 1;
                 f1 = f_send_buffer[idx1 * 3 + d];
@@ -158,9 +158,9 @@ inline void edt_core_mpi(int *d_output,  size_t stride, uint rank, uint d, uint 
                 c = a + b;
                 for (jj = 0; jj < rank; jj++) {
                     if (jj != d) {
-                        int cc = coor[jj];
-                        int tu = f_send_buffer[idx2 * 3 + jj] - cc;
-                        int tv = f_send_buffer[idx1 * 3 + jj] - cc;
+                        double cc = coor[jj];
+                        double tu = f_send_buffer[idx2 * 3 + jj] - cc;
+                        double tv = f_send_buffer[idx1 * 3 + jj] - cc;
                         uR += tu * tu;
                         vR += tv * tv;
                     }
@@ -231,13 +231,13 @@ inline void edt_core_mpi(int *d_output,  size_t stride, uint rank, uint d, uint 
     if (maxl >= 0) {
         l = 0;
         for (ii = chunck_start; ii < len + chunck_start; ii++) {
-            int delta1 = 0.0, t;
+            double delta1 = 0.0, t;
             for (jj = 0; jj < rank; jj++) {
                 t = jj == d ? f_send_buffer[l * 3 + jj] - ii : f_send_buffer[l * 3 + jj] - coor[jj];
                 delta1 += t * t;
             }
             while (l < maxl) {
-                int delta2 = 0.0;
+                double delta2 = 0.0;
                 for (jj = 0; jj < rank; jj++) {
                     t = jj == d ? f_send_buffer[(l + 1) * 3 + jj] - ii : f_send_buffer[(l + 1) * 3 + jj] - coor[jj];
                     delta2 += t * t;
@@ -316,7 +316,7 @@ inline void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, 
 
     for (ii = 0; ii < len; ii++) {
         if (f[ii][0] >= 0) {
-            int fd = f[ii][d];
+            double fd = f[ii][d];
             int wR = 0.0;
             for (jj = 0; jj < rank; jj++) {
                 if (jj != d) {
@@ -325,7 +325,7 @@ inline void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, 
                 }
             }
             while (l >= 1) {
-                int a, b, c, uR = 0.0, vR = 0.0, f1;
+                double a, b, c, uR = 0.0, vR = 0.0, f1;
                 idx1 = l;
                 idx2 = l - 1;
                 f1 = f_send_buffer[idx1 * 3 + d];
@@ -334,9 +334,9 @@ inline void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, 
                 c = a + b;
                 for (jj = 0; jj < rank; jj++) {
                     if (jj != d) {
-                        int cc = coor[jj];
-                        int tu = f_send_buffer[idx2 * 3 + jj] - cc;
-                        int tv = f_send_buffer[idx1 * 3 + jj] - cc;
+                        double cc = coor[jj];
+                        double tu = f_send_buffer[idx2 * 3 + jj] - cc;
+                        double tv = f_send_buffer[idx1 * 3 + jj] - cc;
                         uR += tu * tu;
                         vR += tv * tv;
                     }
@@ -406,13 +406,13 @@ inline void edt_and_sign_core_mpi(int *d_output, char *sign_map, size_t stride, 
     if (maxl >= 0) {
         l = 0;
         for (ii = chunck_start; ii < len + chunck_start; ii++) {
-            int delta1 = 0.0, t;
+            double delta1 = 0.0, t;
             for (jj = 0; jj < rank; jj++) {
                 t = jj == d ? f_send_buffer[l * 3 + jj] - ii : f_send_buffer[l * 3 + jj] - coor[jj];
                 delta1 += t * t;
             }
             while (l < maxl) {
-                int delta2 = 0.0;
+                double delta2 = 0.0;
                 for (jj = 0; jj < rank; jj++) {
                     t = jj == d ? f_send_buffer[(l + 1) * 3 + jj] - ii : f_send_buffer[(l + 1) * 3 + jj] - coor[jj];
                     delta2 += t * t;
@@ -909,8 +909,6 @@ void edt_3d_and_sign_map(T_boundary *boundary, T_distance *distance, T_index *in
     free(local_sign_buffer);
     free(f_send_buffer);
     free(sign_send_buffer);
-    // free(output_data);
-    // free(output);
 }
 
 #endif  // EDT_MPI

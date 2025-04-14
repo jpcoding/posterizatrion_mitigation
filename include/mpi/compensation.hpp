@@ -19,8 +19,9 @@ void compensation_idw(T_data* compensation, T_data* quantized_data, T_distance* 
         double d2 = neutral_distance[i] + 0.5;
         char sign = sign_map[i];
         double magnitude = (1 / d1) / (1 / d1 + 1 / d2);
-        compensation[i] = sign * magnitude * compensation_magnitude;
-        quantized_data[i] += compensation[i];
+        // compensation[i] = sign * magnitude * compensation_magnitude;
+        // quantized_data[i] += compensation[i];
+        quantized_data[i] += sign * magnitude * compensation_magnitude; 
     }
 }
 
@@ -59,8 +60,8 @@ void compensation_rbf(T_data* compensation, T_data* quantized_data, T_distance* 
         double b = rbf(d0);
         double w0 = a / (a*a - b*b)*sign;
         double w1 = b / (-a*a + b*b)*sign;   
-        compensation[i] =  (w0 * rbf(d1) + w1 * rbf(d2)) * compensation_magnitude;
-        quantized_data[i] += compensation[i];
+        // compensation[i] =  (w0 * rbf(d1) + w1 * rbf(d2)) * compensation_magnitude;
+        quantized_data[i] += (w0 * rbf(d1) + w1 * rbf(d2)) * compensation_magnitude;
     }
 }
 

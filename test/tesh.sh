@@ -121,3 +121,40 @@ mpirun -n 1 ./test_mpi/test_boundary_mpi  --mpidims 1 1 1   \
     --rel_eb 0.001     --dir /scratch/pji228/useful/direct_quantize/mpi/blocks_1x1x1       \
   --prefix vx --origdims 256 384 384       \
    --use_rbf 0 --outdir /scratch/pji228/useful/direct_quantize/mpi/blocks_1x1x1/
+
+
+ mpirun -n 16  ./test_mpi/test_embassingly_parallel --mpidims 4 2 2  \
+  -m abs -e 0.00023 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  
+  --outdir /anvil/scratch/x-pjiao/data/graveyard/ \
+ --prefix vx --origdims 256  128 64   --use_rbf 0 --local_edt 1 --local_quant 1 
+
+
+  mpirun -n 8  ./test_mpi/test_embassingly_parallel --mpidims 4 1 2  \
+  -m rel -e 0.001 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  \
+   --outdir /anvil/scratch/x-pjiao/data/graveyard/ \
+   --prefix vx --origdims 256   64 128    --use_rbf 0 --local_edt 1 --local_quant 1 
+
+  mpirun -n 4  ./test_mpi/test_compensation_opt --mpidims 1 4 1  \
+  -m rel -e 0.001 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  \
+   --outdir /anvil/scratch/x-pjiao/data/graveyard/ \
+   --prefix vx --origdims 64 256 64    --use_rbf 0 --local_edt 1 --local_quant 
+   
+  mpirun -n 128  ./test_mpi/test_embassingly_parallel --mpidims 4 8 4  \
+  -m rel -e 0.001 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  \
+   --outdir /anvil/scratch/x-pjiao/data/graveyard/ \
+   --prefix vx --origdims   256 512 256  --use_rbf 0 --local_edt 1 --local_quant 0
+
+  mpirun -n 64  ./test_mpi/test_embassingly_parallel --mpidims 4 4 4  \
+  -m rel -e 0.001 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  \
+   --outdir /anvil/scratch/x-pjiao/data/graveyard/ \
+   --prefix vx --origdims  256 256 256  --use_rbf 0 --local_edt 1 --local_quant 0
+
+  mpirun -n 256  ./test_mpi/test_embassingly_parallel --mpidims 8 8 4  \
+  -m rel -e 0.001 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  \
+   --outdir /anvil/scratch/x-pjiao/data/graveyard/ \
+   --prefix vx --origdims  512 512  256  --use_rbf 0 --local_edt 1 --local_quant 0
+
+mpirun -n 64 ./test_mpi/test_boundary_mpi --mpidims 4 4 4 \
+    -m rel -e 0.001 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  \
+    --prefix vx --origdims  256 256 256  \
+    --use_rbf 0 --outdir /anvil/scratch/x-pjiao/data/graveyard/

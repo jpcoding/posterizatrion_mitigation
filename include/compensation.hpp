@@ -487,7 +487,7 @@ class Compensation {
 
 
         // print edt time
-        // printf("edt time = %.10f \n", edt_omp.get_edt_time());
+        printf("edt time = %.10f \n", edt_omp.get_edt_time());
 
         // writefile("distance.f64", distance_array.data(), distance_array.size());
         // writefile("sign.int8", sign_map.data(), input_size);
@@ -534,11 +534,12 @@ class Compensation {
             return std::sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2) + (z1 - z2) * (z1 - z2));
         };
 
-        // timer.start();
+        timer.start();
         // edt_omp.reset_timer();
         // auto edt_result2 = NI_EuclideanFeatureTransform<double, int>(boundary_map2.data(), N, dims.data()); //
         auto edt_result2 = edt_omp.NI_EuclideanFeatureTransform(boundary_map2.data(), N, dims.data(), edt_thread_num);
-        // std::cout << "edt time = " << timer.stop() << std::endl;
+
+        std::cout << "edt time = " << timer.stop() << std::endl;
         auto distance_array2 = std::move(edt_result2.distance);
         auto indexes2 = std::move(edt_result2.indexes);
         // dump the distance array
