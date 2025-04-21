@@ -16,8 +16,7 @@ int main(int argc, char** argv)
 {
 
     if (argc < 2) {
-        printf("Usage: %s <input_file> <relative_error_bound>\n", argv[0]);
-        printf("Example: %s testfloat_8_8_128.dat 32768 0 0\n", argv[0]);
+        printf("Usage: %s <input_file> <relative_error_bound> <outputfile_name> \n", argv[0]);
         return 0;
     }
 

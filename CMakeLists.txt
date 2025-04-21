@@ -10,3 +10,5 @@ find_package(MPI REQUIRED)
 include_directories("/scratch/pji228/gittmp/sz3.1/include/")
 add_subdirectory(test)
 add_subdirectory(test_mpi)
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION include)

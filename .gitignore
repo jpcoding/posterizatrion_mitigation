@@ -3,3 +3,5 @@ build
 *f64
 build*
 .cache
+debug*
+install*
