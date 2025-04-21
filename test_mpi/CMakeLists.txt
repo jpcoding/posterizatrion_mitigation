@@ -37,8 +37,8 @@ target_link_libraries(test_sequantial OpenMP::OpenMP_CXX MPI::MPI_CXX )
 add_executable(test_mpi_ranks test_mpi_ranks.cpp)
 target_link_libraries(test_mpi_ranks OpenMP::OpenMP_CXX MPI::MPI_CXX )
 
-add_executable(test_embassingly_parallel  test_embassingly_parallel.cpp)
-target_link_libraries(test_embassingly_parallel  MPI::MPI_CXX OpenMP::OpenMP_CXX)
+add_executable(test_embarrassingly_parallel  test_embarrassingly_parallel.cpp)
+target_link_libraries(test_embarrassingly_parallel  MPI::MPI_CXX OpenMP::OpenMP_CXX)
 
 
 # Installation process
@@ -56,6 +56,6 @@ install(TARGETS
     test_decompose_file 
     test_sequantial 
     test_mpi_ranks 
-    test_embassingly_parallel 
+    test_embarrassingly_parallel 
     RUNTIME DESTINATION bin/test_mpi/
 )
