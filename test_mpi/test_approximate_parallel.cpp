@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
         w_quant_inds.resize(w_block_size, 0);
         data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims,
                            w_block_strides, coords, dims, cart_comm);
-        MPI_Barrier(cart_comm);
+        // MPI_Barrier(cart_comm);
         time_exchnage1 = MPI_Wtime() - time_exchnage1;
     }
 
@@ -198,10 +198,6 @@ int main(int argc, char** argv) {
     std::vector<int>().swap(quant_inds);    // Forces reallocation and frees memory
     std::vector<int>().swap(w_quant_inds);  // Forces reallocation and frees memory
 
-    char boundary_max = *std::max_element(boundary.begin(), boundary.end());
-    if (boundary_max == 0) {
-        operation = false;
-    }
     if (mpi_rank == 0) {
         printf("boundary and sign map done \n");
     }
@@ -221,7 +217,7 @@ int main(int argc, char** argv) {
 
     auto edt_omp = PM2::EDT_OMP<float, int>();
     edt_omp.set_num_threads(1);
-    if(operation){
+    {
         auto edt_result = edt_omp.NI_EuclideanFeatureTransform(boundary.data(), 3, data_block_dims.data(), 1);
         distance = std::move(edt_result.distance);
         index = std::move(edt_result.indexes);
@@ -238,24 +234,27 @@ int main(int argc, char** argv) {
     std::vector<char> w_sign_map;
     double  exchange_time2 = 0;   
     {
+        // MPI_Barrier(cart_comm);
         exchange_time2 = MPI_Wtime();
         w_sign_map.resize(w_block_size, 0);
         {
             data_exhange3d(sign_map.data(), block_dims, block_strides, w_sign_map.data(), w_block_dims, w_block_strides,
                            coords, dims, cart_comm);
         }
+        // MPI_Barrier(cart_comm);
+        exchange_time2 = MPI_Wtime() - exchange_time2; 
         if (mpi_rank == 0) {
             printf("second data exchange done  \n");
         }
     }
     // get the second boundary map
     std::vector<char> boundary_neutral(block_size, 0);
-    if (operation) {
+    if (use_local_boundary == false) {
         get_boundary3d<char, char>(w_sign_map.data(), boundary_neutral.data(), w_block_dims, w_block_strides,
                                    block_dims, block_strides, coords, dims, cart_comm);
     }
 
-    if(operation) filter_neutral_boundary3d(boundary.data(), boundary_neutral.data(), b_tag, block_size);
+    filter_neutral_boundary3d(boundary.data(), boundary_neutral.data(), b_tag, block_size);
 
     if (mpi_rank == 0) {
         printf("new boundary completed  \n");
@@ -264,7 +263,7 @@ int main(int argc, char** argv) {
     std::unique_ptr<float[]> distance_neutral;
     std::unique_ptr<size_t[]> index_neutral;
     // timer.start();
-    if(operation){
+    {
         auto edt_result = edt_omp.NI_EuclideanFeatureTransform(boundary_neutral.data(), 3, data_block_dims.data(), 1);
         distance_neutral = std::move(edt_result.distance);
         index_neutral = std::move(edt_result.indexes);
