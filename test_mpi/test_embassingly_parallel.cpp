@@ -268,7 +268,7 @@ int main(int argc, char** argv) {
         writefile<float>(out_filename, data.get(), block_size);
     }
 
-    if (mpi_rank == 0) {
+    if(mpi_rank==0){
         printf("Rank %d, time: %f\n", mpi_rank, runtime);
     }
 

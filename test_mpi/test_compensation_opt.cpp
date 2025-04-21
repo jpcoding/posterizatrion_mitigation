@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
         w_quant_inds.resize(w_block_size, 0);
         data_exhange3d(quant_inds.data(), block_dims, block_strides, w_quant_inds.data(), w_block_dims,
                            w_block_strides, coords, dims, cart_comm);
-        MPI_Barrier(cart_comm);
+        // MPI_Barrier(cart_comm);
         time_exchnage1 = MPI_Wtime() - time_exchnage1;
     }
 
@@ -234,14 +234,14 @@ int main(int argc, char** argv) {
     std::vector<char> w_sign_map;
     double  exchange_time2 = 0;   
     {
-        MPI_Barrier(cart_comm);
+        // MPI_Barrier(cart_comm);
         exchange_time2 = MPI_Wtime();
         w_sign_map.resize(w_block_size, 0);
         {
             data_exhange3d(sign_map.data(), block_dims, block_strides, w_sign_map.data(), w_block_dims, w_block_strides,
                            coords, dims, cart_comm);
         }
-        MPI_Barrier(cart_comm);
+        // MPI_Barrier(cart_comm);
         exchange_time2 = MPI_Wtime() - exchange_time2; 
         if (mpi_rank == 0) {
             printf("second data exchange done  \n");
@@ -284,7 +284,7 @@ int main(int argc, char** argv) {
                          index_neutral.get(), orig_dims, sign_map.data(), block_size, compensation_magnitude);
     }
     MPI_Barrier(cart_comm);
-    total_run_time = MPI_Wtime() - time;
+    total_run_time = MPI_Wtime() - total_run_time;
     if (mpi_rank == 0) {
         printf("idw done \n");
     }

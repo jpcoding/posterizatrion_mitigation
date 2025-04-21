@@ -130,7 +130,7 @@ mpirun -n 1 ./test_mpi/test_boundary_mpi  --mpidims 1 1 1   \
 
 
   mpirun -n 8  ./test_mpi/test_embassingly_parallel --mpidims 4 1 2  \
-  -m rel -e 0.001 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  \
+  -m rel -e 0.005 --dir /anvil/scratch/x-pjiao/data/test_8x8x8  \
    --outdir /anvil/scratch/x-pjiao/data/graveyard/ \
    --prefix vx --origdims 256   64 128    --use_rbf 0 --local_edt 1 --local_quant 1 
 

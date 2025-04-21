@@ -207,7 +207,7 @@ int main(int argc, char** argv) {
     // boundary detection and sign map generation
     std::vector<char> boundary(block_size, 0);
     std::vector<char> sign_map(block_size, 0);
-    std::vector<float> compensation_map(block_size, 0.0);
+    std::vector<float> compensation_map;
     if (operation)
         get_boundary_and_sign_map3d<int, char>(w_quant_inds.data(), boundary.data(), sign_map.data(), w_block_dims,
                                                w_block_strides, block_dims, block_strides, coords, dims, cart_comm);

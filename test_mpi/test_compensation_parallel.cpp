@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
 
     // embrassinly parallel compensation
     // barrier
-    MPI_Barrier(cart_comm);
+    // MPI_Barrier(cart_comm);
     double c_time = MPI_Wtime();  // Start the timer
     if (operation) {
         auto compensator =
@@ -173,7 +173,7 @@ int main(int argc, char** argv) {
     }
 
     // barrier
-    MPI_Barrier(cart_comm);
+    // MPI_Barrier(cart_comm);
     c_time = MPI_Wtime() - c_time;
 
     // calculate the psnr
@@ -213,8 +213,7 @@ int main(int argc, char** argv) {
     // writefile<float>(distance_filename, distance_neutral.data(), num_elements);
 
     // printf("Rank %d, wrote decomp data to %s\n", mpi_rank, out_filename);
-    if (mpi_rank == 0) {
-        printf("abs_eb = %f \n", abs_eb);
+    {
         printf("Rank %d, time: %f\n", mpi_rank, c_time);
     }
 
