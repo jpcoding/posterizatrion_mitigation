@@ -40,6 +40,7 @@ int main(int argc, char** argv)
     double eb = atof(argv[2])*(max - min);
     printf("relative eb: %.6f\n", atof(argv[2]));
     printf("absolute eb: %.6f\n", eb);
+    std::string outname = argv[3];
 
     // create a linear quantizer
     auto quantizer = SZ::LinearQuantizer<float>();
@@ -51,8 +52,8 @@ int main(int argc, char** argv)
     }
 
     // write the quantized data to a file
-    std::string output_file =  p.filename().string()+ ".quant.i32";
-    std::string out_data_file =  p.filename().string() + ".out"; 
+    std::string output_file =  outname+ ".quant.i32";
+    std::string out_data_file = outname + ".out"; 
     printf("Writing quantized data to %s\n", output_file.c_str());
     SZ::writefile(output_file.c_str(), quant_inds.data(),file_size);
     SZ::writefile(out_data_file.c_str(), input_data.data(),file_size);    
