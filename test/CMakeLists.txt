@@ -39,5 +39,5 @@ install(TARGETS
     test_3d_slices 
     test_ssim 
     test_ssim_file
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION bin/test/
 )
