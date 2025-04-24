@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
     app.add_option("--mpidims", dims, "mpi dimensions")->required();
     app.add_option("--dir", dir_prefix, "input file")->required();
     app.add_option("--prefix", orig_prefix, "output file")->required();
-    app.add_option("--sufix", orig_sufix, "output file")->required();
+    app.add_option("--suffix", orig_sufix, "output file")->required();
     app.add_option("--orig_dims", orig_dims, "dimensions")->required();
     app.add_option("--out", out_filename, "output file")->required();
     CLI11_PARSE(app, argc, argv);

@@ -29,6 +29,9 @@ target_link_libraries(test_ssim OpenMP::OpenMP_CXX )
 add_executable(test_ssim_file test_ssim_file.cpp)
 target_link_libraries(test_ssim_file OpenMP::OpenMP_CXX )
 
+add_library(libqcatssim SHARED libqcatssim.cpp)
+target_link_libraries(libqcatssim OpenMP::OpenMP_CXX )
+
 #define the install process 
 install(TARGETS 
     test_3d 
@@ -40,4 +43,8 @@ install(TARGETS
     test_ssim 
     test_ssim_file
     RUNTIME DESTINATION bin/test/
+)
+
+install(TARGETS libqcatssim
+    LIBRARY DESTINATION lib
 )

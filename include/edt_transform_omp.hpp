@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <tuple>
 #include <vector>
@@ -253,18 +254,17 @@ class EDT_OMP {
                        int rank) {
         if (rank == 2) {
             int max_dim = std::max(ishape[0], ishape[1]);
-            std::vector<int> local_f(max_dim * 2);
-            std::vector<int> local_g(max_dim);
-            std::vector<int *> local_f_ptrs(max_dim);
-            std::array<int, 2> coor_local = {0, 0}; 
-        
-            for (int i = 0; i < num_threads; i++) {
-                for (int j = 0; j < max_dim; j++) {
-                    local_f_ptrs[i][j] = local_f[i] + j * 2;
-                }
+
+            int* local_f = (int *)malloc(max_dim * 2 * sizeof(int));
+            int* local_g = (int *)malloc(max_dim * sizeof(int));
+            int** local_f_ptrs = (int **)malloc(max_dim * sizeof(int *));
+            int coor_local[2] = {0, 0};
+            for (int j = 0; j < max_dim; j++) {
+                local_f_ptrs[j] = local_f + j * 2;
             }
 
             for (int i = 0; i < ishape[1]; i++) {
+                coor_local[1] = i;
                 for (int j = 0; j < ishape[0]; j++) {
                     size_t idx = i * istrides[1] + j * istrides[0];
                     if (pi[idx] != edge_tag) {  // non-boundary points
@@ -274,14 +274,18 @@ class EDT_OMP {
                         pf[idx * 2 + 1] = i;
                     }
                 }
-                VoronoiFT(pf + i * fstrides[1], ishape[0], coor_local.data(), rank, 0, fstrides[0],
-                          fstrides[2], local_f_ptrs.data(), local_g.data());
+                VoronoiFT(pf + i * fstrides[1], ishape[0], coor_local, rank, 0, fstrides[0],
+                          fstrides[2], local_f_ptrs, local_g);
             }
             for (int i = 0; i < ishape[0]; i++) {
                 coor_local[0] = i;
-                VoronoiFT(pf + i * fstrides[0], ishape[1], coor_local.data(), rank, 1, fstrides[1],
-                          fstrides[2], local_f_ptrs.data(), local_g.data());
+                VoronoiFT(pf + i * fstrides[0], ishape[1], coor_local, rank, 1, fstrides[1],
+                          fstrides[2], local_f_ptrs, local_g);
             }
+            free(local_f_ptrs);
+            free(local_f);
+            free(local_g);
+
 
         } else if (rank == 3) {
             int max_dim = std::max(ishape[0], std::max(ishape[1], ishape[2]));
