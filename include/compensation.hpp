@@ -474,7 +474,7 @@ class Compensation {
         char edge_tag = 1;
 
         // write boundary map to file
-        writefile("boundary3d.int8", boundary_map.data(), input_size);
+        // writefile("boundary3d.int8", boundary_map.data(), input_size);
 
         auto timer = Timer();
 
@@ -491,7 +491,7 @@ class Compensation {
         // print edt time
         printf("edt time = %.10f \n", edt_omp.get_edt_time());
 
-        writefile("distance1.f32", distance_array.get(), input_size);
+        // writefile("distance1.f32", distance_array.get(), input_size);
         // writefile("sign.int8", sign_map.data(), input_size);
         // complete the sign map
         #pragma omp parallel for num_threads(edt_thread_num)
@@ -501,7 +501,7 @@ class Compensation {
                 sign_map[i] = sign_map[indexes[i]];
             }
         }
-        writefile("sign.int8", sign_map.data(), input_size);
+        // writefile("sign.int8", sign_map.data(), input_size);
 
 
 
@@ -510,7 +510,7 @@ class Compensation {
         // get the second boundry map
         auto boundary_map2 = get_boundary(sign_map.data(), N, dims.data(), edt_thread_num);
 
-        writefile("boundary2.int8", boundary_map2.data(), input_size);
+        // writefile("boundary2.int8", boundary_map2.data(), input_size);
 
         #pragma omp parallel for num_threads(edt_thread_num)
         for (int i = 0; i < input_size; i++) {
@@ -547,7 +547,7 @@ class Compensation {
         auto distance_array2 = std::move(edt_result2.distance);
         auto indexes2 = std::move(edt_result2.indexes);
         // dump the distance array
-        writefile("distance2.f32", distance_array2.get(), input_size);
+        // writefile("distance2.f32", distance_array2.get(), input_size);
 
         // {
         //     distance_array1.resize(input_size, 0);

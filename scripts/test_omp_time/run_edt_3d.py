@@ -12,7 +12,7 @@ import toml
 with open('../test_rate_distortion/config.toml', 'r') as f:
     config = toml.load(f.read())
 
-exe_file_path = config['test_quantize_and_edt_path'] 
+exe_file_path = "../../install/bin/test/test_quantize_and_edt" 
 # print(config)
 
 

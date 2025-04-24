@@ -12,7 +12,7 @@ import toml
 with open('config.toml', 'r') as f:
     config = toml.load(f.read())
 
-exe_file_path = config['direct_quantize_path'] 
+exe_file_path = "../../../install/bin/test/direct_quantize"
 # print(config)
 
 

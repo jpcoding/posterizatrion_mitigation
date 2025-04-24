@@ -1,7 +1,7 @@
 #!/bin/sh
 #SBATCH --job-name=opt_job     # Job name
-#SBATCH --output=slurm_opt%j.out    # Standard output and error log
-#SBATCH --error=slurm_opt%j.err       # Separate error log
+#SBATCH --output=slurm_opt.out    # Standard output and error log
+#SBATCH --error=slurm_opt.err       # Separate error log
 #SBATCH --ntasks=512           # Number of MPI tasks
 #SBATCH --nodes=16              # Number of nodes
 #SBATCH --ntasks-per-node=32   # Number of tasks per node

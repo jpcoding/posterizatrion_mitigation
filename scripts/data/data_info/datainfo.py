@@ -41,8 +41,8 @@ class DataInfo:
         
         
 
-data_root = '../data/'        
-
+base_dir = os.path.dirname(os.path.abspath(__file__))
+data_root = os.path.abspath(os.path.join(base_dir, '..', 'data'))
 
 miranda = DataInfo(f'{data_root}/miranda_256x384x384/', '.f32') 
 miranda.set_dims([384,384,256])

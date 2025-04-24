@@ -9,11 +9,11 @@ import pandas as pd
 import re 
 import toml 
 
-with open('config.toml', 'r') as f:
-    config = toml.load(f.read())
+# with open('../configs.toml', 'r') as f:
+#     config = toml.load(f)
 
-exe_file_path = config['test_quantize_and_edt_path'] 
-# print(config)
+exe_file_path = "../../../install/bin/test/test_quantize_and_edt"
+
 
 
 def qcatssim(orig:np.ndarray[np.float32], decompressed:np.ndarray[np.float32]):
@@ -81,7 +81,7 @@ def gaussian_filtered(data, sigma):
 def run_instance(orig_file, dims, eb):
     thread_num = 8
     # exe_path = "/scratch/pji228/gittmp/posterization_mitigation/build/test/test_quantize_and_edt  "
-    exe_path = exe_path
+    exe_path = exe_file_path
     # dims_str = str(len(dims)) + " " + " ".join([str(x) for x in dims])
     dims_str =  " ".join([str(x) for x in dims])
     out_dir = "./results/"
